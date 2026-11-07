@@ -232,6 +232,9 @@ final class App: NSObject, NSApplicationDelegate {
       if candidates.count == 1 {
         candidates[0].profile = profile
         log.notice("profile: connection learned as \(profile, privacy: .public)")
+      } else if force {
+        let fronts = connections.map { "\($0.profile ?? "?"): \($0.front.map { "\"\($0.title)\" \($0.frame)" } ?? "no front")" }
+        log.notice("profile: \(candidates.count) matches for \"\(tab, privacy: .public)\" \(profile, privacy: .public) \(frame.map { "\($0)" } ?? "no frame", privacy: .public); connections: \(fronts.joined(separator: "; "), privacy: .public)")
       }
     }
   }

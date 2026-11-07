@@ -13,10 +13,12 @@ name="Monochrome"
 build="$here/build/$name.app"
 app="$HOME/Applications/$name.app"
 bundle_id="local.monochrome"
-host="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/monochrome_helper.json"
+# Each Chrome has its own native messaging host folder; the host is registered with every one that
+# has run on this Mac (stable always), so profiles in Beta, Dev, Canary or Chromium connect too.
+chromes="Google/Chrome|Google/Chrome Beta|Google/Chrome Dev|Google/Chrome Canary|Chromium"
 
 swiftc --version >/dev/null 2>&1 || { echo "helper: needs the command line tools: xcode-select --install"; exit 1; }
-[ -d "/Applications/Google Chrome.app" ] || { echo "Install Google Chrome first: https://www.google.com/chrome/"; exit 1; }
+[ -n "$(ls -d /Applications/Google\ Chrome*.app /Applications/Chromium.app 2>/dev/null)" ] || { echo "Install Google Chrome first: https://www.google.com/chrome/"; exit 1; }
 
 rm -rf "$build"
 mkdir -p "$build/Contents/MacOS" "$build/Contents/Resources"
@@ -85,8 +87,13 @@ key = base64.b64decode(json.load(open(sys.argv[1]))["key"])
 print("".join(chr(97 + int(c, 16)) for c in hashlib.sha256(key).hexdigest()[:32]))' "$(dirname "$here")/manifest.json")
 # The Web Store's copy has the store's ID (store/id); both are allowed, so either copy reaches the helper.
 store_id=$(cat "$(dirname "$here")/store/id" 2>/dev/null || true)
-mkdir -p "$(dirname "$host")"
-python3 -I - "$host" "$app/Contents/Resources/host.sh" "$id" "$store_id" <<'EOF'
+registered=""
+echo "$chromes" | tr '|' '\n' | while IFS= read -r chrome; do
+  support="$HOME/Library/Application Support/$chrome"
+  [ "$chrome" = "Google/Chrome" ] || [ -d "$support" ] || continue
+  hosts="$support/NativeMessagingHosts"
+  mkdir -p "$hosts"
+  python3 -I - "$hosts/monochrome_helper.json" "$app/Contents/Resources/host.sh" "$id" "$store_id" <<'EOF'
 import json, sys
 host, path, id, store_id = sys.argv[1:]
 origins = [f'chrome-extension://{i}/' for i in dict.fromkeys([id, store_id]) if i]
@@ -94,8 +101,9 @@ with open(host, 'w') as f:
     json.dump({'name': 'monochrome_helper', 'description': "Monochrome: helper app",
                'path': path, 'type': 'stdio', 'allowed_origins': origins}, f, indent=2)
 EOF
-rm -f "$(dirname "$host")/erics_arc_player.json" "$(dirname "$host")/erics_arc_helper.json"
-echo "helper: registered with Chrome for extension $id${store_id:+ and the store copy $store_id}"
+  rm -f "$hosts/erics_arc_player.json" "$hosts/erics_arc_helper.json"
+  echo "helper: registered with ${chrome#Google/} for extension $id${store_id:+ and the store copy $store_id}"
+done
 
 # Dock: swap a pinned Google Chrome icon (which would start Chrome without the flags) for the helper.
 dock_bak="$HOME/Library/Preferences/com.apple.dock.plist.pre-monochrome.bak"

@@ -4,20 +4,25 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 
-[ -d "/Applications/Google Chrome.app" ] || { echo "Install Google Chrome first: https://www.google.com/chrome/"; exit 1; }
+[ -n "$(ls -d /Applications/Google\ Chrome*.app /Applications/Chromium.app 2>/dev/null)" ] || { echo "Install Google Chrome first: https://www.google.com/chrome/"; exit 1; }
 
-# 1. Chrome menu shortcuts (macOS App Shortcuts): ⌘S collapses/expands the vertical tab sidebar like
-#    the sidebar; Save Page As moves to ⇧⌘S so the two don't clash; ⌥⌘↓ / ⌥⌘↑ move down / up the tab list.
-#    Takes effect next time Chrome starts. (\357\234\201 and \357\234\200 are the UTF-8 for the
-#    down/up arrow key characters, U+F701 / U+F700.)
-defaults write com.google.Chrome NSUserKeyEquivalents -dict-add \
-  "Collapse Vertical Tabs" "@s" \
-  "Save Page As…" '@$s' \
-  "Select Next Tab" "$(printf '@~\357\234\201')" \
-  "Select Previous Tab" "$(printf '@~\357\234\200')"
-# Chrome would otherwise ask to be made the default browser on every start; the helper app is.
-defaults write com.google.Chrome DefaultBrowserSettingEnabled -bool false
-echo "chrome menu shortcuts: set"
+# 1. Chrome menu shortcuts (macOS App Shortcuts), for each Chrome installed: ⌘S collapses/expands the
+#    vertical tab sidebar like the sidebar; Save Page As moves to ⇧⌘S so the two don't clash; ⌥⌘↓ / ⌥⌘↑
+#    move down / up the tab list. Takes effect next time Chrome starts. (\357\234\201 and \357\234\200
+#    are the UTF-8 for the down/up arrow key characters, U+F701 / U+F700.)
+for chrome in "Google Chrome:com.google.Chrome" "Google Chrome Beta:com.google.Chrome.beta" "Google Chrome Dev:com.google.Chrome.dev" \
+              "Google Chrome Canary:com.google.Chrome.canary" "Chromium:org.chromium.Chromium"; do
+  [ -d "/Applications/${chrome%%:*}.app" ] || continue
+  domain=${chrome#*:}
+  defaults write "$domain" NSUserKeyEquivalents -dict-add \
+    "Collapse Vertical Tabs" "@s" \
+    "Save Page As…" '@$s' \
+    "Select Next Tab" "$(printf '@~\357\234\201')" \
+    "Select Previous Tab" "$(printf '@~\357\234\200')"
+  # Chrome would otherwise ask to be made the default browser on every start; the helper app is.
+  defaults write "$domain" DefaultBrowserSettingEnabled -bool false
+  echo "${chrome%%:*} menu shortcuts: set"
+done
 
 # 2. The helper app: ⌃Tab switcher, Chrome's launch flags (login item and Dock icon), default browser
 #    for links from other apps, sidebar mini player.

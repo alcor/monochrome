@@ -41,19 +41,20 @@ final class Profiles {
     panel.contentView = hosting
   }
 
-  // The names alone, for reading window titles; the menu is walked at most every five seconds.
+  // The names alone, from every running Chrome, for reading window titles; the menus are walked at
+  // most every five seconds.
   private static var cachedNames: [String] = [], namesRead = Date.distantPast
   static func names() -> [String] {
     if Date().timeIntervalSince(namesRead) > 5 {
-      cachedNames = read().map(\.name)
+      cachedNames = Array(Set(Chrome.runningApps.flatMap { read($0).map(\.name) }))
       namesRead = Date()
     }
     return cachedNames
   }
 
   // The Profiles menu's items up to its first separator; after that come Edit… and Add Profile….
-  static func read() -> [Profile] {
-    guard let chrome = Chrome.running else { return [] }
+  static func read(_ chrome: NSRunningApplication? = Chrome.running) -> [Profile] {
+    guard let chrome else { return [] }
     let app = AXUIElementCreateApplication(chrome.processIdentifier)
     func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
       var value: AnyObject?

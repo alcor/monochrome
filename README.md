@@ -40,6 +40,8 @@ The built app is on the releases page, https://github.com/alcor/monochrome/relea
 
 Building from source requires Google Chrome, git and the Xcode command line tools (`xcode-select --install`).
 
+Chrome Beta, Dev, Canary and Chromium count as Chrome throughout: the install registers the host with each one that has run on this Mac, the extension loads in any of them, and their profiles' windows are told apart by the browser name in the title. The Dock tile and the login item start stable when none of them is running.
+
 1. Clone to a permanent folder. Chrome loads the extension from it, so not Downloads.
 
    ```bash

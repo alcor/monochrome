@@ -6,13 +6,16 @@
 # macOS falls back to asking next time a link is opened; pick Chrome in System Settings → Desktop & Dock.
 set -eu
 app="$HOME/Applications/Monochrome.app"
-hosts="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+chromes="Google/Chrome|Google/Chrome Beta|Google/Chrome Dev|Google/Chrome Canary|Chromium"
 
 osascript -e 'tell application id "local.monochrome" to quit' >/dev/null 2>&1 || true
 pkill -x Monochrome 2>/dev/null || true
 [ -x "$app/Contents/MacOS/Monochrome" ] && "$app/Contents/MacOS/Monochrome" --unregister 2>/dev/null || true
 rm -rf "$app" "$HOME/Library/Application Support/Monochrome" "$HOME/Applications/Arc for Chrome.app" "$HOME/Library/Application Support/Arc for Chrome"
-rm -f "$hosts/monochrome_helper.json" "$hosts/erics_arc_player.json"
+echo "$chromes" | tr '|' '\n' | while IFS= read -r chrome; do
+  hosts="$HOME/Library/Application Support/$chrome/NativeMessagingHosts"
+  rm -f "$hosts/monochrome_helper.json" "$hosts/erics_arc_player.json"
+done
 
 launcher_agent="$HOME/Library/LaunchAgents/local.arc-for-chrome.launcher.plist"
 launchctl bootout "gui/$(id -u)" "$launcher_agent" 2>/dev/null || true
@@ -22,7 +25,9 @@ python3 -I - <<'EOF'
 import json, os, plistlib, subprocess
 
 def edit_defaults(domain, change):
-    raw = subprocess.run(['defaults', 'export', domain, '-'], capture_output=True, check=True).stdout
+    raw = subprocess.run(['defaults', 'export', domain, '-'], capture_output=True).stdout
+    if not raw:
+        return # no such domain
     prefs = plistlib.loads(raw)
     if change(prefs):
         subprocess.run(['defaults', 'import', domain, '-'], input=plistlib.dumps(prefs), check=True)
@@ -39,7 +44,8 @@ def drop_chrome_prefs(chrome):
     return bool(removed) | (chrome.pop('DefaultBrowserSettingEnabled', None) is not None)
 
 edit_defaults('com.apple.dock', drop_dock_tile)
-edit_defaults('com.google.Chrome', drop_chrome_prefs)
+for domain in ('com.google.Chrome', 'com.google.Chrome.beta', 'com.google.Chrome.dev', 'com.google.Chrome.canary', 'org.chromium.Chromium'):
+    edit_defaults(domain, drop_chrome_prefs)
 
 path = os.path.expanduser('~/.config/karabiner/karabiner.json')
 if os.path.exists(path):

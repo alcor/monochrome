@@ -9,26 +9,52 @@ import AppKit
 import UserNotifications
 
 enum Chrome {
-  static let bundleId = "com.google.Chrome"
+  // Every Chrome the extension runs in, each with its own profiles, extension copy and native
+  // messaging host folder (install.sh registers with each one installed). Their windows and
+  // connections are handled together; stable comes first and is what the Dock icon and the login
+  // item start when none is running. `name` is what their window titles carry.
+  struct Variant { let bundleId: String, name: String }
+  static let variants = [
+    Variant(bundleId: "com.google.Chrome", name: "Google Chrome"),
+    Variant(bundleId: "com.google.Chrome.beta", name: "Google Chrome Beta"),
+    Variant(bundleId: "com.google.Chrome.dev", name: "Google Chrome Dev"),
+    Variant(bundleId: "com.google.Chrome.canary", name: "Google Chrome Canary"),
+    Variant(bundleId: "org.chromium.Chromium", name: "Chromium"),
+  ]
+  static let bundleIds = variants.map(\.bundleId)
   static let features = ["OmniboxForceAllowedToBeDefault"]
 
-  static var running: NSRunningApplication? { NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first }
+  static func isChrome(_ bundleId: String?) -> Bool { bundleId.map(bundleIds.contains) ?? false }
+  static func name(of app: NSRunningApplication) -> String { variants.first { $0.bundleId == app.bundleIdentifier }?.name ?? "Chrome" }
+
+  static var runningApps: [NSRunningApplication] { bundleIds.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0) } }
+
+  // The one to ask when one is needed: the one in front, else the owner of the Chrome window highest
+  // on screen, else whichever runs.
+  static var running: NSRunningApplication? {
+    let apps = runningApps
+    guard apps.count > 1 else { return apps.first }
+    if let front = NSWorkspace.shared.frontmostApplication, let app = apps.first(where: { $0.processIdentifier == front.processIdentifier }) { return app }
+    if let pid = windows().first?.pid, let app = apps.first(where: { $0.processIdentifier == pid }) { return app }
+    return apps.first
+  }
 
   // Kept from the workspace's activation notices rather than asked per event: the tap consults it on
   // every keystroke and click.
   static var isFrontmost: Bool { _ = frontmostObserver; return frontmost }
   private static var frontmost = false
   private static let frontmostObserver: Void = {
-    frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId
+    frontmost = isChrome(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
-      frontmost = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == bundleId
+      frontmost = isChrome((note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier)
     }
   }()
 
   // Launches with the flags, or hands URLs to the running one (which opens them as tabs: the extension
   // turns those into mini browsers). activate: bring it to the front either way.
   static func open(_ urls: [URL] = [], activate: Bool) {
-    guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else { return }
+    let running = running
+    guard let appURL = running?.bundleURL ?? bundleIds.lazy.compactMap({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }).first else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = activate
     if running == nil { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
@@ -73,21 +99,23 @@ enum Chrome {
   struct Window {
     let id: CGWindowID // the window server's number, the same one NSWindow calls windowNumber
     let frame: CGRect
+    var pid: pid_t = 0
   }
 
   // Chrome's windows on screen, front to back, in window-list coordinates (down from the top of the
   // main screen). Window bounds need no permission; only window titles would.
+  // Every running Chrome's windows, front to back.
   static func windows() -> [Window] {
-    guard let running else { return [] }
+    let pids = Set(runningApps.map(\.processIdentifier))
+    guard !pids.isEmpty else { return [] }
     let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-    return windows
-      .filter { $0[kCGWindowOwnerPID as String] as? pid_t == running.processIdentifier && $0[kCGWindowLayer as String] as? Int == 0 }
-      .compactMap { w -> Window? in
-        guard let id = w[kCGWindowNumber as String] as? CGWindowID,
-              let frame = (w[kCGWindowBounds as String] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }),
-              frame.width > 120, frame.height > 80 else { return nil }
-        return Window(id: id, frame: frame)
-      }
+    return windows.compactMap { w -> Window? in
+      guard let pid = w[kCGWindowOwnerPID as String] as? pid_t, pids.contains(pid), w[kCGWindowLayer as String] as? Int == 0,
+            let id = w[kCGWindowNumber as String] as? CGWindowID,
+            let frame = (w[kCGWindowBounds as String] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }),
+            frame.width > 120, frame.height > 80 else { return nil }
+      return Window(id: id, frame: frame, pid: pid)
+    }
   }
 
   static func windowFrames() -> [CGRect] { windows().map(\.frame) }
@@ -109,20 +137,24 @@ enum Chrome {
   static var frontWindowFrame: NSRect? { demoAnchor ?? windowFrames().first { $0.width > 200 && $0.height > 200 }.map(appKit) }
 
   // The focused window's title over Accessibility, split as Chrome composes it: the tab's title, then
-  // " - Google Chrome", then " - " and the profile's name when there is more than one profile.
-  static func frontWindowTitle() -> (tab: String, profile: String)? {
+  // the browser's name, then " - " and the profile's name when there is more than one profile.
+  static func frontWindowTitle() -> (tab: String, profile: String, browser: String)? {
     guard let running else { return nil }
     var window: AnyObject?
     guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(running.processIdentifier), kAXFocusedWindowAttribute as CFString, &window) == .success,
           let window, let full = axTitle(window as! AXUIElement)
     else { return nil }
-    return split(title: full)
+    let (tab, profile) = split(title: full)
+    return (tab, profile, name(of: running))
   }
 
-  // A window's title is "tab - Google Chrome - profile" for a normal window and "tab - profile" for a
-  // popup, the profile part only when Chrome has more than one; the names come from its Profiles menu.
+  // A window's title is "tab - Google Chrome - profile" for a normal window (Beta, Dev, Canary and
+  // Chromium put their own names there) and "tab - profile" for a popup, the profile part only when
+  // that Chrome has more than one profile; the names come from the Profiles menus.
   static func split(title full: String) -> (tab: String, profile: String) {
-    if let mark = full.range(of: " - Google Chrome", options: .backwards) {
+    // Longest name first, so " - Google Chrome" is not found inside " - Google Chrome Beta".
+    for name in variants.map(\.name).sorted(by: { $0.count > $1.count }) {
+      guard let mark = full.range(of: " - " + name, options: .backwards) else { continue }
       let rest = full[mark.upperBound...]
       return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
     }

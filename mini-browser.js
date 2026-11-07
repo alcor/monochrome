@@ -27,9 +27,9 @@ async function miniState() {
   return { mini, peek, lastNormal, focused };
 }
 
+// Centered over the front window, at one size: a size remembered from the last mini browser was
+// whatever that one had been shrunk or clamped to, and every later one inherited it.
 async function miniBounds() {
-  const { miniBounds } = await chrome.storage.local.get('miniBounds');
-  if (miniBounds) return miniBounds;
   const w = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
   if (!w) return MINI_SIZE;
   return {
@@ -202,19 +202,7 @@ chrome.windows.onRemoved.addListener(windowId => run(async () => {
   if (over) await dim(over.tabId, false);
 }));
 
-// A peek's size comes from its window each time; only a mini browser you resized is remembered, once
-// the drag has settled rather than per frame.
-let boundsTimer = null;
-chrome.windows.onBoundsChanged.addListener(w => {
-  if (!miniOpen.has(w.id)) return;
-  clearTimeout(boundsTimer);
-  boundsTimer = setTimeout(async () => {
-    const { peek } = await miniState();
-    if (w.id in peek) return;
-    const { left, top, width, height } = w;
-    await chrome.storage.local.set({ miniBounds: { left, top, width, height } });
-  }, 300);
-});
+chrome.storage.local.remove('miniBounds'); // the size earlier versions kept
 
 chrome.alarms.create('mini-archive', { periodInMinutes: 30 });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === 'mini-archive') archiveMiniBrowsers(); });

@@ -62,7 +62,8 @@ if [ -d "$old" ]; then
   "$old/Contents/MacOS/ArcHelper" --unregister 2>/dev/null || true # the binary itself: open would hand off to a running copy
   rm -rf "$old" "$HOME/Library/Application Support/Arc for Chrome"
 fi
-osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || true
+# By process, not by bundle id: "tell application id ... to quit" resolves the id to the newest bundle,
+# the one just built, and launches that copy to quit it, which can leave it running beside the installed one.
 pkill -x Monochrome 2>/dev/null || true
 sleep 0.5
 # Ad hoc, macOS ties the Accessibility grant to the code hash. If the build changed, the old entry is

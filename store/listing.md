@@ -42,7 +42,7 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 
 - `tabs`: read tab addresses and titles to keep locked tabs at their address, order new tabs, walk tabs by recent use, and name windows for the mini browser's picker.
 - `tabGroups`: recognize the locked group by title, put tabs back into it, and offer groups as places to move a mini browser's page.
-- `storage`: keep locked addresses, the recent-tab order, the mini browser size and the locked group's title on the user's computer.
+- `storage`: keep locked addresses, the recent-tab order and the locked group's title on the user's computer.
 - `webNavigation`: notice a navigation in a locked tab, to re-apply the peek catch in that tab's frames, and notice a link handed to Chrome by another app, to open it as a mini browser.
 - `scripting`: inject the peek catch into locked tabs only, and the fallback bar and shade into mini browser pages when the companion app is not running.
 - `search`: run what the user types in a mini browser's box through their default search engine.

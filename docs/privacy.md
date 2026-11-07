@@ -16,7 +16,7 @@ Over Chrome's native messaging port to the Monochrome app on the same Mac, and n
 
 ## What is stored
 
-In Chrome's extension storage on your computer: locked tabs' addresses, the recent-tab order, the mini browser window size, and the locked group's title. The app stores its link rules in `~/Library/Application Support/Monochrome/routes.json`. Removing the extension and the app removes all of it; `uninstall.sh` in the repository does both.
+In Chrome's extension storage on your computer: locked tabs' addresses, the recent-tab order, and the locked group's title. The app stores its link rules in `~/Library/Application Support/Monochrome/routes.json`. Removing the extension and the app removes all of it; `uninstall.sh` in the repository does both.
 
 ## Changes
 

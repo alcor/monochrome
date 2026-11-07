@@ -162,7 +162,7 @@ final class App: NSObject, NSApplicationDelegate {
 
   func route(_ url: URL, from sender: String?) {
     let rule = Routes.route(url, from: sender)
-    log.info("route: \(url.host ?? "", privacy: .public) from \(sender ?? "?", privacy: .public): \(rule?.description ?? "no rule", privacy: .public)")
+    log.notice("route: \(url.host ?? "", privacy: .public) from \(sender ?? "?", privacy: .public): \(rule?.description ?? "no rule", privacy: .public)")
     let to = rule?.to ?? [:]
     if let app = to["app"] as? String {
       guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app) else {
@@ -175,13 +175,15 @@ final class App: NSObject, NSApplicationDelegate {
     deliver(url, to: to, over: frontConnection)
   }
 
-  // Over a profile's connection when there is one; else Chrome gets the URL as a tab and the extension
-  // there, if any, makes a mini browser of it.
+  // Over a profile's connection when there is one; else Chrome gets the URL as a tab in the profile it
+  // last used and the extension there, if any, makes a mini browser of it.
   func deliver(_ url: URL, to: [String: Any], over connection: Connection?) {
     if let connection {
+      log.notice("route: over \(connection.profile ?? "the unnamed connection", privacy: .public)")
       send(["open": url.absoluteString, "to": to.filter { !["profile", "app"].contains($0.key) }], to: connection)
       Chrome.running?.activate()
     } else {
+      log.notice("route: no connection; Chrome opens it")
       Chrome.open([url], activate: true)
     }
   }
@@ -205,50 +207,50 @@ final class App: NSObject, NSApplicationDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: tries - 1) }
   }
 
-  // Every Chrome window's title names its profile; a connection whose reported front tab title is the
-  // only one matching a window learns that name.
+  // Every Chrome window's title names its profile; a connection whose reported front window is the
+  // only one matching a window, by tab title or by frame, learns that name. The title the extension
+  // sent can be behind the page, and the frame behind a move, so either one counts.
   var lastLearn = Date.distantPast
-  func learnProfiles() {
-    // At most every two seconds: with a single profile the titles carry no name, and this would read
-    // the window list on every message for nothing.
-    guard connections.contains(where: { $0.profile == nil && $0.front != nil }), Date().timeIntervalSince(lastLearn) > 2,
+  func learnProfiles(force: Bool = false) {
+    // At most every two seconds unless forced: with a single profile the titles carry no name, and
+    // this would read the window list on every message for nothing.
+    guard connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2,
           let running = Chrome.running else { return }
     lastLearn = Date()
     var list: AnyObject?
     guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(running.processIdentifier), kAXWindowsAttribute as CFString, &list) == .success,
           let windows = list as? [AXUIElement] else { return }
     for window in windows {
-      var value: AnyObject?
-      guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success, let full = value as? String,
-            let mark = full.range(of: " - Google Chrome - ", options: .backwards) else { continue }
-      let tab = String(full[..<mark.lowerBound]), profile = String(full[mark.upperBound...])
-      let candidates = connections.filter { $0.profile == nil && $0.front?.title == tab }
-      if candidates.count == 1, !connections.contains(where: { $0.profile == profile }) {
+      guard let full = Chrome.axTitle(window) else { continue }
+      let (tab, profile) = Chrome.split(title: full)
+      guard !profile.isEmpty, !connections.contains(where: { $0.profile == profile }) else { continue }
+      let frame = Chrome.axFrame(window)
+      let candidates = connections.filter { c in
+        guard c.profile == nil, let front = c.front else { return false }
+        return front.title == tab || frame.map { Chrome.match(front.frame, in: [Chrome.Window(id: 0, frame: $0)]) != nil } ?? false
+      }
+      if candidates.count == 1 {
         candidates[0].profile = profile
-        log.info("profile: connection learned as \(profile, privacy: .public)")
+        log.notice("profile: connection learned as \(profile, privacy: .public)")
       }
     }
   }
 
-  // The connection whose reported front window is the Chrome window in front on screen. With one
-  // connection there is nothing to decide. With more, the frame narrows it, and the window's title
-  // settles it: two profiles can show same-sized windows, so each connection learns its profile's name
-  // the first time it alone matches a front window, and the name decides from then on.
+  // The connection of the profile whose window is in front on screen: the window's title names the
+  // profile, and the connection that has learned that name (learnProfiles) is it. Nil when no
+  // connection has: that profile has no extension running, or its name is not known yet, and a link
+  // sent over another profile's connection would open there. A title with no name means Chrome has
+  // one profile, and the front window's frame picks among connections, if there are several.
   var frontConnection: Connection? {
-    guard connections.count > 1, let front = Chrome.windows().first else { return connections.first }
-    let byFrame = connections.filter { c in c.front.map { Chrome.match($0.frame, in: [front]) != nil } ?? false }
-    let title = Chrome.frontWindowTitle()
-    if let title, !title.profile.isEmpty {
-      if let known = connections.first(where: { $0.profile == title.profile }) { return known }
-      let byTitle = byFrame.filter { $0.front?.title == title.tab }
-      if byTitle.count == 1 || byFrame.count == 1 {
-        let one = (byTitle.first ?? byFrame.first)!
-        one.profile = title.profile
-        log.info("profile: connection learned as \(title.profile, privacy: .public)")
-        return one
-      }
+    guard let front = Chrome.windows().first else { return connections.first }
+    guard let title = Chrome.frontWindowTitle(), !title.profile.isEmpty else {
+      return connections.first { c in c.front.map { Chrome.match($0.frame, in: [front]) != nil } ?? false } ?? connections.first
     }
-    return byFrame.first ?? connections.first
+    if let known = connections.first(where: { $0.profile == title.profile }) { return known }
+    learnProfiles(force: true)
+    if let known = connections.first(where: { $0.profile == title.profile }) { return known }
+    log.notice("profile: no connection for \(title.profile, privacy: .public) in front")
+    return nil
   }
 
   func send(_ message: [String: Any], to connection: Connection?) {

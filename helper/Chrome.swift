@@ -112,13 +112,41 @@ enum Chrome {
   // " - Google Chrome", then " - " and the profile's name when there is more than one profile.
   static func frontWindowTitle() -> (tab: String, profile: String)? {
     guard let running else { return nil }
-    var window: AnyObject?, title: AnyObject?
+    var window: AnyObject?
     guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(running.processIdentifier), kAXFocusedWindowAttribute as CFString, &window) == .success,
-          let window, AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &title) == .success,
-          let full = title as? String, let mark = full.range(of: " - Google Chrome", options: .backwards)
+          let window, let full = axTitle(window as! AXUIElement)
     else { return nil }
-    let rest = full[mark.upperBound...]
-    return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
+    return split(title: full)
+  }
+
+  // A window's title is "tab - Google Chrome - profile" for a normal window and "tab - profile" for a
+  // popup, the profile part only when Chrome has more than one; the names come from its Profiles menu.
+  static func split(title full: String) -> (tab: String, profile: String) {
+    if let mark = full.range(of: " - Google Chrome", options: .backwards) {
+      let rest = full[mark.upperBound...]
+      return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
+    }
+    for name in Profiles.names() where full.hasSuffix(" - " + name) {
+      return (String(full.dropLast(name.count + 3)), name)
+    }
+    return (full, "")
+  }
+
+  static func axTitle(_ window: AXUIElement) -> String? {
+    var title: AnyObject?
+    guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title) == .success else { return nil }
+    return title as? String
+  }
+
+  // In window-list coordinates, like windows().
+  static func axFrame(_ window: AXUIElement) -> CGRect? {
+    var position: AnyObject?, size: AnyObject?
+    var origin = CGPoint.zero, extent = CGSize.zero
+    guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &position) == .success,
+          AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &size) == .success,
+          AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent)
+    else { return nil }
+    return CGRect(origin: origin, size: extent)
   }
 }
 

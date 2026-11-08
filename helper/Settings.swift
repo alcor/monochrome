@@ -12,6 +12,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let size = NSSize(width: 760, height: 464)
   var connectionsSummary: () -> String = { "" }
+  var connectedProfiles: () -> [String] = { [] }
+  var checkForUpdates: () -> Void = {}
   private var window: NSWindow?
   private var tabs: SettingsTabs?
   private var rulesModel: RulesModel?
@@ -37,14 +39,20 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     window.isReleasedWhenClosed = false
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .preference
-    let general = NSHostingController(rootView: GeneralSettings(model: GeneralModel(connections: connectionsSummary)))
+    var generalView = GeneralSettings(model: GeneralModel(connections: connectionsSummary, profiles: connectedProfiles))
+    generalView.onLoadExtension = { [weak self] in self?.tabs?.selectedTabViewItemIndex = 2 }
+    generalView.onCheckForUpdates = { [weak self] in self?.checkForUpdates() }
+    let general = NSHostingController(rootView: generalView)
     let rules = sampleRules ? RulesModel(sample: Rule.samples) : RulesModel()
     rulesModel = rules
     let routes = NSHostingController(rootView: RoutesSettings(model: rules))
+    let extensionTab = NSHostingController(rootView: ExtensionSettings())
     general.preferredContentSize = Self.size
     routes.preferredContentSize = NSSize(width: Self.size.width, height: 500) // the rules beside the selected one's fields
+    extensionTab.preferredContentSize = NSSize(width: Self.size.width, height: 420)
     let tabs = SettingsTabs()
-    for (controller, label, symbol) in [(general, "General", "gearshape"), (routes, "Router", "arrow.triangle.branch")] as [(NSViewController, String, String)] {
+    for (controller, label, symbol) in [(general, "General", "gearshape"), (routes, "Router", "arrow.triangle.branch"),
+                                        (extensionTab, "Extension", "puzzlepiece.extension")] as [(NSViewController, String, String)] {
       let item = NSTabViewItem(viewController: controller)
       item.label = label
       item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -94,10 +102,14 @@ final class GeneralModel: ObservableObject {
   @Published var accessibility = AXIsProcessTrusted()
   @Published var chrome = ""
   @Published var extensions = ""
+  @Published var connected: [String] = []
   let connections: () -> String
+  let profiles: () -> [String]
+  let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
 
-  init(connections: @escaping () -> String) {
+  init(connections: @escaping () -> String, profiles: @escaping () -> [String]) {
     self.connections = connections
+    self.profiles = profiles
     refresh()
   }
 
@@ -111,6 +123,7 @@ final class GeneralModel: ObservableObject {
     case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
     }
     extensions = connections()
+    connected = profiles()
   }
 
   func setLaunchAtLogin(_ on: Bool) {
@@ -135,31 +148,175 @@ struct GeneralSettings: View {
   @ObservedObject var model: GeneralModel
   private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
+  var onLoadExtension: () -> Void = {}
+  var onCheckForUpdates: () -> Void = {}
+
+  // Two columns: the app's own settings, and what it sees of Chrome and the extension.
   var body: some View {
-    Form {
-      Section {
-        Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
-        LabeledContent("Default browser") {
-          if model.isDefaultBrowser { Text("Monochrome").foregroundStyle(.secondary) } else { Button("Make Monochrome Default…", action: model.makeDefault) }
-        }
-        LabeledContent("Accessibility") {
-          if model.accessibility {
-            Text("Allowed").foregroundStyle(.secondary)
-          } else {
-            Button("Open Accessibility Settings…") { GeneralModel.openPrivacyPane("Privacy_Accessibility") }
+    HStack(alignment: .top, spacing: 0) {
+      Form {
+        Section {
+          Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
+          LabeledContent("Default browser") {
+            if model.isDefaultBrowser { Text("Monochrome").foregroundStyle(.secondary) } else { Button("Make Default…", action: model.makeDefault) }
           }
+          LabeledContent("Accessibility") {
+            if model.accessibility {
+              Text("Allowed").foregroundStyle(.secondary)
+            } else {
+              Button("Open Settings…") { GeneralModel.openPrivacyPane("Privacy_Accessibility") }
+            }
+          }
+          LabeledContent("Version " + model.version) { Button("Check for Updates…", action: onCheckForUpdates) }
+        } header: {
+          Text("Monochrome")
+        } footer: {
+          Text("Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu.")
         }
-      } footer: {
-        Text("Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu.")
       }
-      Section("Chrome") {
-        LabeledContent("Chrome") { Text(model.chrome).foregroundStyle(.secondary).multilineTextAlignment(.trailing) }
-        LabeledContent("Extension") { Text(model.extensions).foregroundStyle(.secondary).multilineTextAlignment(.trailing) }
+      Form {
+        Section("Chrome") {
+          Text(model.chrome).foregroundStyle(.secondary)
+        }
+        Section {
+          if model.connected.isEmpty {
+            Text("No profile has connected").foregroundStyle(.secondary)
+          } else {
+            ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
+          }
+          Button("Load in a Profile…", action: onLoadExtension)
+        } header: {
+          Text("Extension")
+        } footer: {
+          Text("The profiles whose extension is talking to the app.")
+        }
       }
     }
     .formStyle(.grouped)
     .scrollContentBackground(.hidden)
     .onReceive(timer) { _ in model.refresh() }
+  }
+}
+
+// Extension: the copy of the extension inside the app, for a Load unpacked in each profile. Chrome's
+// extensions page takes a folder dropped on it when Developer mode is on, so the folder is a drag
+// source here, with the steps beside it. Which profiles have it loaded is on the General tab.
+struct ExtensionSettings: View {
+  static let folder = Bundle.main.resourceURL!.appendingPathComponent("extension")
+
+  var body: some View {
+    Form {
+      Section {
+        HStack(spacing: 16) {
+          FolderDragSource(url: Self.folder).frame(width: 120, height: 96)
+          VStack(alignment: .leading, spacing: 8) {
+            Text("The extension is inside the app. Chrome loads it from here as an unpacked extension, in each profile:")
+            Text("1. Open chrome://extensions in the profile.\n2. Turn on Developer mode, top right.\n3. Drag this folder onto the page.")
+          }
+          .font(.callout)
+        }
+        .padding(.vertical, 4)
+        LabeledContent("Chrome") {
+          Button("Open chrome://extensions") {
+            Chrome.open([URL(string: "chrome://extensions")!], activate: true)
+            ExtensionDropPanel.shared.show()
+          }
+        }
+        LabeledContent("Folder") { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Self.folder]) } }
+      } footer: {
+        Text("After an update of the app, click reload on the extension's card in each profile; Chrome does not re-read an unpacked extension on its own. The Chrome Web Store copy updates itself.")
+      }
+    }
+    .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
+  }
+}
+
+// A folder icon that starts a file drag, the way the Finder's would: the pasteboard carries the folder's
+// URL, which Chrome's extensions page accepts.
+struct FolderDragSource: NSViewRepresentable {
+  let url: URL
+
+  func makeNSView(context: Context) -> FolderDragView { FolderDragView(url: url) }
+  func updateNSView(_ view: FolderDragView, context: Context) {}
+}
+
+final class FolderDragView: NSView, NSDraggingSource {
+  let url: URL
+  var onDropped: () -> Void = {}
+  private let icon = NSImageView()
+  private let label = NSTextField(labelWithString: "extension")
+
+  init(url: URL) {
+    self.url = url
+    super.init(frame: .zero)
+    icon.image = NSWorkspace.shared.icon(forFile: url.path)
+    icon.imageScaling = .scaleProportionallyUpOrDown
+    label.font = .systemFont(ofSize: 11)
+    label.textColor = .secondaryLabelColor
+    label.alignment = .center
+    addSubview(icon)
+    addSubview(label)
+    toolTip = url.path
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  override func layout() {
+    super.layout()
+    label.sizeToFit()
+    label.frame = NSRect(x: 0, y: 0, width: bounds.width, height: label.frame.height)
+    let side = min(bounds.width, bounds.height - label.frame.height - 4)
+    icon.frame = NSRect(x: (bounds.width - side) / 2, y: label.frame.height + 4, width: side, height: side)
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+    item.setDraggingFrame(icon.frame, contents: icon.image)
+    beginDraggingSession(with: [item], event: event, source: self)
+  }
+
+  func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
+
+  func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+    if operation.contains(.copy) { onDropped() }
+  }
+}
+
+// After chrome://extensions opens, Chrome is in front and the settings window is behind it, so the folder
+// comes along in a small floating panel at the top right of the screen. It closes once the folder has
+// been dropped somewhere, or with its close button.
+final class ExtensionDropPanel {
+  static let shared = ExtensionDropPanel()
+  private var panel: NSPanel?
+
+  func show() {
+    if panel == nil { panel = make() }
+    guard let panel, let screen = NSScreen.main else { return }
+    let visible = screen.visibleFrame
+    panel.setFrameOrigin(NSPoint(x: visible.maxX - panel.frame.width - 24, y: visible.maxY - panel.frame.height - 24))
+    panel.orderFront(nil)
+  }
+
+  private func make() -> NSPanel {
+    let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
+                        styleMask: [.titled, .closable, .nonactivatingPanel, .utilityWindow], backing: .buffered, defer: false)
+    panel.title = "Monochrome extension"
+    panel.level = .floating
+    panel.isReleasedWhenClosed = false
+    panel.hidesOnDeactivate = false
+    panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+    let content = NSView(frame: panel.contentView!.bounds)
+    let folder = FolderDragView(url: ExtensionSettings.folder)
+    folder.frame = NSRect(x: 16, y: 20, width: 100, height: 96)
+    folder.onDropped = { [weak panel] in panel?.close() }
+    let text = NSTextField(wrappingLabelWithString: "Turn on Developer mode, top right of the page, then drag this folder onto the page.")
+    text.font = .systemFont(ofSize: 12)
+    text.frame = NSRect(x: 132, y: 40, width: 152, height: 76)
+    content.addSubview(folder)
+    content.addSubview(text)
+    panel.contentView = content
+    return panel
   }
 }
 

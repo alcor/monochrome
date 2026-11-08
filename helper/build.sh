@@ -12,12 +12,24 @@ build="$here/build/$name.app"
 
 swiftc --version >/dev/null 2>&1 || { echo "helper: needs the command line tools: xcode-select --install"; exit 1; }
 
+# Sparkle, for updates from the appcast (sparkle.sh fetches it once).
+sparkle=$("$here/sparkle.sh")
+
 rm -rf "$build"
-mkdir -p "$build/Contents/MacOS" "$build/Contents/Resources"
-swiftc -O -o "$build/Contents/MacOS/Monochrome" "$here"/*.swift
+mkdir -p "$build/Contents/MacOS" "$build/Contents/Resources" "$build/Contents/Frameworks"
+swiftc -O -F "$sparkle" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
+  -o "$build/Contents/MacOS/Monochrome" "$here"/*.swift
+cp -R "$sparkle/Sparkle.framework" "$build/Contents/Frameworks/"
 cp "$here/Info.plist" "$build/Contents/Info.plist"
 cp "$here/host.sh" "$build/Contents/Resources/host.sh"
 chmod +x "$build/Contents/Resources/host.sh"
+
+# The extension itself, for a Load unpacked from the app's Extension tab. The manifest keeps its key, so
+# this copy has the ID the host is registered for, the same as a clone's.
+root=$(dirname "$here")
+extension="$build/Contents/Resources/extension"
+mkdir -p "$extension/icons"
+while read -r f; do cp "$root/$f" "$extension/$f"; done < "$root/store/files"
 
 # The extension IDs the app registers its native messaging host for: the unpacked extension's, which
 # is the first 32 hex digits of the SHA-256 of the manifest's public key written with a-p for 0-f (the
@@ -58,6 +70,11 @@ if [ -n "$identity" ] && ! printf %s "$identities" | grep -qF "\"$identity\""; t
 fi
 [ -n "$identity" ] || identity=$(printf %s "$identities" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
 [ -n "$identity" ] || identity=$(printf %s "$identities" | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')
+# Sparkle's updater and XPC services are signed first, each on its own, as its documentation asks.
+for nested in Autoupdate Updater.app XPCServices/Downloader.xpc XPCServices/Installer.xpc; do
+  codesign --force --sign "${identity:--}" -o runtime "$build/Contents/Frameworks/Sparkle.framework/Versions/B/$nested"
+done
+codesign --force --sign "${identity:--}" -o runtime "$build/Contents/Frameworks/Sparkle.framework"
 codesign --force --deep --sign "${identity:--}" "$build"
 if [ -n "$identity" ]; then
   printf %s "$identity" > "$support/identity"

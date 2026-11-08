@@ -23,11 +23,11 @@
     if (now === sent && Date.now() - sentAt < 10_000) return;
     sent = now;
     sentAt = Date.now();
-    postMessage({ arcMusic: JSON.parse(now) }, location.origin);
+    postMessage({ monochromeMusic: JSON.parse(now) }, location.origin);
   }, 1000);
 
   addEventListener('message', e => {
-    const action = e.source === window && e.data?.arcMusicAction;
+    const action = e.source === window && e.data?.monochromeMusicAction;
     if (!action) return;
     if (handlers[action]) return handlers[action]({ action });
     // No handler from the site: play or pause its audio/video directly.

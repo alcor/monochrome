@@ -1,12 +1,12 @@
-// The bar in the top-right of a Little Arc page: an address button (🔗, or ⌘L), "Open in Chrome" and
+// The bar in the top-right of a mini browser page: an address button (🔗, or ⌘L), "Open in Chrome" and
 // ▾ to pick a window or tab group, labelled with whatever shortcuts are set for them. Chrome's popup
 // windows have no address bar, so ⌘L opens an address field with the URL selected, ready to copy;
-// Enter goes to a URL or search, Esc closes it. Injected by little-arc.js on each page load inside a
-// Little Arc.
+// Enter goes to a URL or search, Esc closes it. Injected by mini-browser.js on each page load inside a
+// mini browser.
 (() => {
-  if (document.getElementById('erics-little-arc-bar')) return;
+  if (document.getElementById('monochrome-mini-bar')) return;
   const host = document.createElement('div');
-  host.id = 'erics-little-arc-bar';
+  host.id = 'monochrome-mini-bar';
   host.style.cssText = 'all: initial; position: fixed; top: 10px; right: 10px; z-index: 2147483647;';
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `
@@ -43,11 +43,11 @@
   const field = address.querySelector('input');
   const colors = { grey: '#9aa0a6', blue: '#8ab4f8', red: '#f28b82', yellow: '#fdd663', green: '#81c995',
                    pink: '#ff8bcb', purple: '#c58af9', cyan: '#78d9ec', orange: '#fcad70' };
-  const move = to => chrome.runtime.sendMessage({ little: 'move', to });
+  const move = to => chrome.runtime.sendMessage({ mini: 'move', to });
 
   async function toggleMenu() {
     if (!menu.hidden) return void (menu.hidden = true);
-    const targets = await chrome.runtime.sendMessage({ little: 'targets' });
+    const targets = await chrome.runtime.sendMessage({ mini: 'targets' });
     menu.replaceChildren();
     for (const w of targets) {
       const head = document.createElement('div');
@@ -82,7 +82,7 @@
     e.preventDefault();
     const text = field.value.trim();
     address.hidden = true;
-    if (text && text !== location.href) chrome.runtime.sendMessage({ little: 'go', text });
+    if (text && text !== location.href) chrome.runtime.sendMessage({ mini: 'go', text });
   };
   field.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); address.hidden = true; } });
   field.addEventListener('blur', () => { address.hidden = true; });
@@ -94,19 +94,19 @@
     }
   }, true);
 
-  chrome.runtime.sendMessage({ little: 'shortcuts' }).then(keys => {
+  chrome.runtime.sendMessage({ mini: 'shortcuts' }).then(keys => {
     const kbd = root.querySelector('kbd');
-    if (keys['little-open']) kbd.textContent = keys['little-open'];
+    if (keys['mini-open']) kbd.textContent = keys['mini-open'];
     else kbd.remove();
-    if (keys['little-open-in']) root.querySelector('.caret').title = `Open in… (${keys['little-open-in']})`;
+    if (keys['mini-open-in']) root.querySelector('.caret').title = `Open in… (${keys['mini-open-in']})`;
   });
 
   root.querySelector('.url').onclick = showAddress;
   root.querySelector('.open').onclick = () => move();
   root.querySelector('.caret').onclick = toggleMenu;
   chrome.runtime.onMessage.addListener(msg => {
-    if (msg.little === 'menu') toggleMenu();
-    if (msg.little === 'address') showAddress();
+    if (msg.mini === 'menu') toggleMenu();
+    if (msg.mini === 'address') showAddress();
   });
   document.documentElement.append(host);
 })();

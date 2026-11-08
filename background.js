@@ -1,4 +1,4 @@
-// Arc-style locked tabs. A tab is locked when it's pinned or sits in one of LOCKED_GROUPS; it
+// Locked tabs. A tab is locked when it's pinned or sits in one of LOCKED_GROUPS; it
 // remembers the URL it had when it got locked. Closing it (⌘W, middle-click) puts it back at that
 // URL in the same spot; ⌃R or the toolbar button resets it in place. Unpin it or drag it out of the
 // group first to really close it.
@@ -14,12 +14,51 @@
 // closing a window that has locked tabs and then quitting can shift URLs by one.
 // "Replace pinned URL with current" or re-locking fixes a wrong one.
 
-// ponytail: hardcoded; add an options page when there's a second group to lock.
-const LOCKED_GROUPS = ['CoreCore'];
+// The locked group's title, set on the options page; CoreCore until then.
+let LOCKED_GROUPS = ['CoreCore'];
+chrome.storage.local.get('lockedGroup').then(({ lockedGroup }) => { if (lockedGroup) LOCKED_GROUPS = [lockedGroup]; });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.lockedGroup) return;
+  LOCKED_GROUPS = [changes.lockedGroup.newValue || 'CoreCore'];
+  resync();
+});
 
 // Every read-modify-write goes through this queue so overlapping tab events can't clobber each other.
 let queue = Promise.resolve();
 const run = fn => (queue = queue.then(fn).catch(console.error));
+
+// What the worker knows without asking Chrome: which tabs are locked, every tab's window, title and
+// URL, and the recently-used order. A service worker starts over with empty globals on any event, so
+// all of it is rebuilt once at start (one query) and then kept from events; session storage backs up
+// the MRU order and the locked URLs, which must outlive a restart.
+const lockedIds = new Set();
+const tabInfo = new Map(); // tabId -> { windowId, title, url }
+let mru = []; // tab ids, most recently used first
+
+const noteTab = t => tabInfo.set(t.id, { windowId: t.windowId, title: t.title || '', url: t.url || t.pendingUrl || '' });
+
+async function loadState() {
+  const tabs = await chrome.tabs.query({});
+  tabs.forEach(noteTab);
+  const { mru: saved = [] } = await chrome.storage.session.get('mru');
+  const known = saved.filter(id => tabInfo.has(id));
+  const rest = tabs.filter(t => !known.includes(t.id)).sort((a, b) => b.lastAccessed - a.lastAccessed);
+  mru = [...known, ...rest.map(t => t.id)];
+  await sync();
+}
+const ready = run(loadState);
+
+chrome.tabs.onCreated.addListener(noteTab);
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => { if ('title' in change || 'url' in change) noteTab(tab); });
+chrome.tabs.onAttached.addListener((tabId, { newWindowId }) => { const t = tabInfo.get(tabId); if (t) t.windowId = newWindowId; });
+chrome.tabs.onRemoved.addListener(tabId => {
+  tabInfo.delete(tabId);
+  lockedIds.delete(tabId);
+  if (mru.includes(tabId)) {
+    mru = mru.filter(id => id !== tabId);
+    chrome.storage.session.set({ mru });
+  }
+});
 
 async function lockedTabs() {
   const groups = await chrome.tabGroups.query({});
@@ -50,7 +89,8 @@ async function sync(change) {
     next[slot].push(pins[t.id]);
     where[t.id] = { windowId: t.windowId, index: t.index, group: group?.title, color: group?.color };
   }
-  const lockedIds = new Set(locked.map(({ t }) => t.id));
+  lockedIds.clear();
+  for (const { t } of locked) lockedIds.add(t.id);
   for (const id in pins) if (ids.has(+id) && !lockedIds.has(+id)) delete pins[id];
   await chrome.storage.session.set({ pins, where, restoreUntil });
   await chrome.storage.local.set({ order: next });
@@ -59,7 +99,10 @@ async function sync(change) {
 
 const resync = () => run(() => sync());
 chrome.runtime.onStartup.addListener(resync);
-chrome.runtime.onInstalled.addListener(resync);
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  resync();
+  if (reason === 'install') chrome.runtime.openOptionsPage();
+});
 chrome.tabs.onMoved.addListener(resync);
 chrome.tabs.onAttached.addListener(resync);
 chrome.tabGroups.onUpdated.addListener(resync);
@@ -73,6 +116,8 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
     const group = tab.groupId === -1 ? null : await chrome.tabGroups.get(tab.groupId);
     const isLocked = tab.pinned || LOCKED_GROUPS.includes(group?.title);
     await sync(p => { if (isLocked) p[tabId] ??= tab.url || tab.pendingUrl; else delete p[tabId]; });
+    if (isLocked) injectPeekCatch(tabId);
+    else chrome.tabs.sendMessage(tabId, { mini: 'locked', value: false }).catch(() => {});
   });
 });
 
@@ -100,9 +145,10 @@ chrome.tabs.onRemoved.addListener((tabId, { isWindowClosing }) => {
 });
 
 // New tabs open at the top of the tab list, just under the locked tabs (pinned, then the CoreCore
-// group), like Arc's Today list. A tab opened from a link in a normal tab stays where Chrome puts
-// it, right after that tab. One opened from a locked tab goes to the top, and if Chrome dropped it
-// into the locked group it's taken out, so it doesn't get locked. Tabs in other groups are left alone.
+// group). A tab opened from a link in a normal tab stays where Chrome puts
+// it, right after that tab. One opened in the background from a locked tab goes to the top, and if
+// Chrome dropped it into the locked group it's taken out, so it doesn't get locked; one opened in the
+// foreground from a locked tab becomes a peek (mini-browser.js). Tabs in other groups are left alone.
 const STARTUP_GRACE_MS = 5000; // session restore recreates every tab; leave those where they are
 let browserStarted = 0;
 let recreating = 0; // locked tabs we're putting back stay where they're put
@@ -110,9 +156,8 @@ chrome.runtime.onStartup.addListener(() => { browserStarted = Date.now(); });
 const starting = () => browserStarted && Date.now() - browserStarted < STARTUP_GRACE_MS;
 
 async function isLocked(tabId) {
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  if (!tab || tab.pinned) return !!tab;
-  return tab.groupId !== -1 && LOCKED_GROUPS.includes((await chrome.tabGroups.get(tab.groupId)).title);
+  await ready;
+  return lockedIds.has(tabId);
 }
 
 async function topIndex(windowId, exceptTabId) {
@@ -123,15 +168,40 @@ async function topIndex(windowId, exceptTabId) {
     .reduce((top, t) => Math.max(top, t.index + 1), 0);
 }
 
+// peek's click catch (peek-click.js, and peek-open.js in the page's world) runs only in locked
+// tabs: put there when a tab locks and on each navigation of a locked tab. (A group renamed to or from
+// CoreCore isn't noticed; those tabs fall back to the tab-then-peek path until they navigate.)
+async function injectPeekCatch(tabId, frameId) {
+  const target = frameId === undefined ? { tabId, allFrames: true } : { tabId, frameIds: [frameId] };
+  await chrome.scripting.executeScript({ target, files: ['peek-click.js'] }).catch(() => {});
+  await chrome.scripting.executeScript({ target, files: ['peek-open.js'], world: 'MAIN' }).catch(() => {});
+}
+chrome.webNavigation.onCommitted.addListener(async d => {
+  if (/^https?:/.test(d.url) && await isLocked(d.tabId)) injectPeekCatch(d.tabId, d.frameId);
+});
+
+// ⌥⌘-click on a link: the helper's tap turns it into ⌘-click (a background tab) and says so, and that
+// tab becomes a mini browser.
+let miniNextUntil = 0;
+
 chrome.tabs.onCreated.addListener(created => {
   if (recreating || created.pinned || starting()) return;
   run(async () => {
     const tab = await chrome.tabs.get(created.id).catch(() => null);
     if (!tab || tab.pinned) return;
+    if (!tab.active && miniNextUntil > Date.now()) {
+      miniNextUntil = 0;
+      openMiniBrowser({ tabId: tab.id }).catch(console.error); // queues its own run(): don't wait for it inside this one
+      return;
+    }
     if ((await chrome.windows.get(tab.windowId)).type !== 'normal') return;
     // Chrome records an opener for ⌘T too; only a link (not the New Tab page) stays by its opener.
     const newTabPage = /^chrome:\/\/new-?tab/.test(created.pendingUrl || created.url);
     if (tab.openerTabId && !newTabPage && !(await isLocked(tab.openerTabId))) return;
+    if (tab.openerTabId && !newTabPage && tab.active) { // queues its own run(): don't wait for it inside this one
+      openPeekBrowser({ tabId: tab.id }, { id: tab.openerTabId, windowId: tab.windowId }).catch(console.error);
+      return;
+    }
     if (tab.groupId !== -1) {
       if (!LOCKED_GROUPS.includes((await chrome.tabGroups.get(tab.groupId)).title)) return;
       await chrome.tabs.ungroup(tab.id);
@@ -157,10 +227,10 @@ async function closeTabs() {
   await chrome.tabs.remove(tabs.map(t => t.id));
 }
 
-// Recent tabs, Arc-style: ⌃Tab walks through tabs in every window, most recently used first, for as
+// Recent tabs: ⌃Tab walks through the current window's tabs, most recently used first, for as
 // long as Control is held; letting go of Control ends the walk, so the next ⌃Tab goes back to the tab
 // you came from. Chrome won't give extensions the Tab key or tell them when Control is released, so
-// Karabiner (karabiner/ctrl-tab.json) sends:
+// the helper's event tap (helper/Tap.swift) sends:
 //   ⌃.  first ⌃Tab since Control went down: start a new walk (recent-next)
 //   ⌃⇧. more ⌃Tabs with Control still held: keep walking (recent-continue)
 //   ⌃,  ⌃⇧Tab: walk back one step (recent-prev)
@@ -169,18 +239,18 @@ async function closeTabs() {
 // A → B → C, release, ⌃Tab goes back to A, not B. Tabs we haven't seen yet fall back to lastAccessed.
 let walk = null; // { list, i, visited }
 
-async function mruList() {
-  const { mru = [] } = await chrome.storage.session.get('mru');
-  const tabs = await chrome.tabs.query({});
-  const known = mru.filter(id => tabs.some(t => t.id === id));
-  const rest = tabs.filter(t => !known.includes(t.id)).sort((a, b) => b.lastAccessed - a.lastAccessed);
-  return [...known, ...rest.map(t => t.id)];
+// All tabs, or one window's; ⌃Tab walks the window you're in. Every open tab is in the list: the
+// start seeds it from lastAccessed, and a new tab is added as it opens.
+function mruList(windowId) {
+  const ids = mru.filter(id => tabInfo.has(id));
+  return windowId === undefined ? ids : ids.filter(id => tabInfo.get(id).windowId === windowId);
 }
 
-async function touch(tabId, at = 0) {
-  const list = (await mruList()).filter(id => id !== tabId);
-  list.splice(at, 0, tabId);
-  await chrome.storage.session.set({ mru: list });
+function touch(tabId, at = 0) {
+  mru = mru.filter(id => id !== tabId);
+  mru.splice(at, 0, tabId);
+  chrome.storage.session.set({ mru });
+  helperMruSoon();
 }
 
 // A walk ends when the next one starts or you go to a tab some other way; only then does the tab it
@@ -196,7 +266,9 @@ function recent(step, fresh) {
   return run(async () => {
     if (fresh || !walk) {
       await endWalk();
-      walk = { list: await mruList(), i: 0, visited: new Set() };
+      await ready;
+      const front = await chrome.windows.getLastFocused().catch(() => null);
+      walk = { list: mruList(front?.id), i: 0, visited: new Set() };
     }
     walk.i = (walk.i + step + walk.list.length) % walk.list.length;
     const id = walk.list[walk.i];
@@ -232,12 +304,18 @@ chrome.windows.onFocusChanged.addListener(async windowId => {
   if (tab) activated(tab.id);
 });
 
-importScripts('little-arc.js', 'player.js');
+importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js');
 
 chrome.action.onClicked.addListener(reset);
 
+// The options page asks what it shows.
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg.status) return;
+  reply({ helper: !!helper, lockedGroup: LOCKED_GROUPS[0] });
+});
+
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command.startsWith('little-')) return littleCommand(command);
+  if (command.startsWith('mini-')) return miniCommand(command);
   if (command === 'recent-next') return recent(1, true);
   if (command === 'recent-continue') return recent(1, false);
   if (command === 'recent-prev') return recent(-1, false);

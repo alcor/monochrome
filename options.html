@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Monochrome</title>
+<style>
+  body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #202124; margin: 0; padding: 20px 24px; width: 420px; }
+  @media (prefers-color-scheme: dark) { body { color: #e8eaed; } .status, input { background: rgba(255,255,255,.06); color: inherit; } .note { color: #9aa0a6; } }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 28px; height: 28px; }
+  .status { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,.05); margin-bottom: 16px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; margin-right: 8px; }
+  .dot.on { background: #1e8e3e; }
+  label { display: block; font-weight: 600; margin: 14px 0 4px; }
+  input { font: inherit; width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; background: #fff; }
+  .note { color: #5f6368; margin: 4px 0 0; }
+  .row { display: flex; gap: 8px; margin-top: 16px; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; cursor: default; }
+  a { color: #1a73e8; }
+</style>
+</head>
+<body>
+  <h1><img src="icons/32.png" alt="">Monochrome</h1>
+  <div class="status">
+    <span><span class="dot" id="dot"></span><span id="helper">Checking the helper app…</span></span>
+    <a id="app" href="https://github.com/arfct/monochrome/releases/latest" target="_blank">Get the app</a>
+  </div>
+  <p class="note">The extension works on its own: locked tabs, new tabs at the top, ⌃Tab by recent use, mini browsers. The Monochrome app for macOS adds the thumbnail switcher, the bar on mini browsers, profile switching and link routing.</p>
+
+  <label for="group">Locked tab group</label>
+  <input id="group" spellcheck="false" autocomplete="off">
+  <p class="note">Tabs in a group with this title behave like pinned tabs: closing one brings it back at its locked address.</p>
+
+  <div class="row">
+    <button id="shortcuts">Keyboard Shortcuts…</button>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

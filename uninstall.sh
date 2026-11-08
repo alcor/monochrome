@@ -1,5 +1,5 @@
 #!/bin/sh
-# Undoes setup.sh and what the app installs at launch: removes the helper app (login item, Dock icon, Chrome registration, the app itself),
+# Undoes `make install` and what the app installs at launch: removes the helper app (login item, Dock icon, Chrome registration, the app itself),
 # this project's Chrome App Shortcuts (other App Shortcuts stay), and anything left from earlier
 # versions (Chrome Launcher, the Karabiner rule; Karabiner itself stays installed).
 # The extension is removed by hand in chrome://extensions. If the helper was your default browser,
@@ -8,7 +8,7 @@ set -eu
 app="$HOME/Applications/Monochrome.app"
 chromes="Google/Chrome|Google/Chrome Beta|Google/Chrome Dev|Google/Chrome Canary|Chromium"
 
-osascript -e 'tell application id "local.monochrome" to quit' >/dev/null 2>&1 || true
+pkill -x Monochrome 2>/dev/null || true
 pkill -x Monochrome 2>/dev/null || true
 [ -x "$app/Contents/MacOS/Monochrome" ] && "$app/Contents/MacOS/Monochrome" --unregister 2>/dev/null || true
 rm -rf "$app" "$HOME/Library/Application Support/Monochrome" "$HOME/Applications/Arc for Chrome.app" "$HOME/Library/Application Support/Arc for Chrome"

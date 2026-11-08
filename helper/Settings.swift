@@ -5,6 +5,7 @@
 // window is on screen it is an app in the Dock with a menu bar, so the window can be found and
 // switched to, and back to a background app when the window closes.
 import AppKit
+import Combine
 import ServiceManagement
 import SwiftUI
 
@@ -40,19 +41,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .preference
     var generalView = GeneralSettings(model: GeneralModel(connections: connectionsSummary, profiles: connectedProfiles))
-    generalView.onLoadExtension = { [weak self] in self?.tabs?.selectedTabViewItemIndex = 2 }
     generalView.onCheckForUpdates = { [weak self] in self?.checkForUpdates() }
     let general = NSHostingController(rootView: generalView)
     let rules = sampleRules ? RulesModel(sample: Rule.samples) : RulesModel()
     rulesModel = rules
     let routes = NSHostingController(rootView: RoutesSettings(model: rules))
-    let extensionTab = NSHostingController(rootView: ExtensionSettings())
     general.preferredContentSize = Self.size
     routes.preferredContentSize = NSSize(width: Self.size.width, height: 500) // the rules beside the selected one's fields
-    extensionTab.preferredContentSize = NSSize(width: Self.size.width, height: 420)
     let tabs = SettingsTabs()
-    for (controller, label, symbol) in [(general, "General", "gearshape"), (routes, "Router", "arrow.triangle.branch"),
-                                        (extensionTab, "Extension", "puzzlepiece.extension")] as [(NSViewController, String, String)] {
+    for (controller, label, symbol) in [(general, "General", "gearshape"), (routes, "Router", "arrow.triangle.branch")] as [(NSViewController, String, String)] {
       let item = NSTabViewItem(viewController: controller)
       item.label = label
       item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -148,7 +145,6 @@ struct GeneralSettings: View {
   @ObservedObject var model: GeneralModel
   private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
-  var onLoadExtension: () -> Void = {}
   var onCheckForUpdates: () -> Void = {}
 
   // Two columns: the app's own settings, and what it sees of Chrome and the extension.
@@ -184,11 +180,11 @@ struct GeneralSettings: View {
           } else {
             ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
           }
-          Button("Load in a Profile…", action: onLoadExtension)
+          Button("Install Extension…") { InstallExtensionPanel.shared.show() }
         } header: {
           Text("Extension")
         } footer: {
-          Text("The profiles whose extension is talking to the app.")
+          Text("The profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
         }
       }
     }
@@ -198,59 +194,67 @@ struct GeneralSettings: View {
   }
 }
 
-// Extension: the copy of the extension inside the app, for a Load unpacked in each profile. Chrome's
-// extensions page takes a folder dropped on it when Developer mode is on, so the folder is a drag
-// source here, with the steps beside it. Which profiles have it loaded is on the General tab.
-struct ExtensionSettings: View {
-  static let folder = Bundle.main.resourceURL!.appendingPathComponent("extension")
+// Install the extension: a small floating panel with the copy of the extension inside the app as a
+// folder to drag onto chrome://extensions, and the steps. A standard window at a high level, so it stays
+// over Chrome while the user turns on Developer mode and drops the folder, in each profile, and so it is a
+// key, active window the drag can begin from. The General tab's Install Extension… button and the mini
+// browser's bar show it. The folder is dragged by writing its real file URL to the pasteboard (not a copy,
+// which Load unpacked needs); the standard key window is what lets that drag begin.
+final class InstallExtensionPanel {
+  static let shared = InstallExtensionPanel()
+  // Built as a directory file URL: a URL from appendingPathComponent wrote no pasteboard types here, so
+  // the drag carried nothing a drop target could take.
+  static let folder = URL(fileURLWithPath: Bundle.main.resourcePath! + "/extension", isDirectory: true)
+  private var window: NSWindow?
 
-  var body: some View {
-    Form {
-      Section {
-        HStack(spacing: 16) {
-          FolderDragSource(url: Self.folder).frame(width: 120, height: 96)
-          VStack(alignment: .leading, spacing: 8) {
-            Text("The extension is inside the app. Chrome loads it from here as an unpacked extension, in each profile:")
-            Text("1. Open chrome://extensions in the profile.\n2. Turn on Developer mode, top right.\n3. Drag this folder onto the page.")
-          }
-          .font(.callout)
-        }
-        .padding(.vertical, 4)
-        LabeledContent("Chrome") {
-          Button("Open chrome://extensions") {
-            Chrome.open([URL(string: "chrome://extensions")!], activate: true)
-            ExtensionDropPanel.shared.show()
-          }
-        }
-        LabeledContent("Folder") { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Self.folder]) } }
-      } footer: {
-        Text("After an update of the app, click reload on the extension's card in each profile; Chrome does not re-read an unpacked extension on its own. The Chrome Web Store copy updates itself.")
-      }
+  func show() {
+    if window == nil { window = make() }
+    guard let window, let screen = NSScreen.main else { return }
+    let visible = screen.visibleFrame
+    if !window.isVisible {
+      window.setFrameOrigin(NSPoint(x: visible.maxX - window.frame.width - 24, y: visible.maxY - window.frame.height - 24))
     }
-    .formStyle(.grouped)
-    .scrollContentBackground(.hidden)
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
   }
+
+  private func make() -> NSWindow {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 200),
+                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    window.title = "Install the Monochrome extension"
+    window.level = .floating
+    window.isReleasedWhenClosed = false
+    window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+    let content = window.contentView!
+    let folder = FolderDragView(url: Self.folder)
+    folder.frame = NSRect(x: 20, y: 86, width: 100, height: 96)
+    let text = NSTextField(wrappingLabelWithString:
+      "1. Open chrome://extensions in the profile.\n2. Turn on Developer mode, top right.\n3. Drag this folder onto the page.\n\nOnce per profile.")
+    text.font = .systemFont(ofSize: 13)
+    text.frame = NSRect(x: 140, y: 56, width: 260, height: 126)
+    let open = NSButton(title: "Open chrome://extensions", target: self, action: #selector(openExtensionsPage))
+    open.bezelStyle = .rounded
+    open.frame = NSRect(x: 136, y: 16, width: 220, height: 28)
+    [folder, text, open].forEach(content.addSubview)
+    return window
+  }
+
+  @objc private func openExtensionsPage() { Chrome.open([URL(string: "chrome://extensions")!], activate: true) }
 }
 
-// A folder icon that starts a file drag, the way the Finder's would: the pasteboard carries the folder's
-// URL, which Chrome's extensions page accepts.
-struct FolderDragSource: NSViewRepresentable {
-  let url: URL
-
-  func makeNSView(context: Context) -> FolderDragView { FolderDragView(url: url) }
-  func updateNSView(_ view: FolderDragView, context: Context) {}
-}
-
+// The folder icon in the install window, a drag source that puts the folder's real file URL on the
+// pasteboard, so Chrome's Load unpacked reads the extension from inside the app bundle, not a copy.
 final class FolderDragView: NSView, NSDraggingSource {
   let url: URL
-  var onDropped: () -> Void = {}
   private let icon = NSImageView()
   private let label = NSTextField(labelWithString: "extension")
 
   init(url: URL) {
     self.url = url
     super.init(frame: .zero)
-    icon.image = NSWorkspace.shared.icon(forFile: url.path)
+    // A puzzle-piece mark with the extension's icon, so it reads as a browser extension being dragged.
+    icon.image = Bundle.main.url(forResource: "install-drag-icon", withExtension: "png").flatMap { NSImage(contentsOf: $0) }
+      ?? NSImage(contentsOf: url.appendingPathComponent("icons/128.png")) ?? NSWorkspace.shared.icon(forFile: url.path)
     icon.imageScaling = .scaleProportionallyUpOrDown
     label.font = .systemFont(ofSize: 11)
     label.textColor = .secondaryLabelColor
@@ -262,6 +266,9 @@ final class FolderDragView: NSView, NSDraggingSource {
 
   required init?(coder: NSCoder) { nil }
 
+  // The whole view is the drag handle; without this the image view inside swallows the mouse-down.
+  override func hitTest(_ point: NSPoint) -> NSView? { frame.contains(point) ? self : nil }
+
   override func layout() {
     super.layout()
     label.sizeToFit()
@@ -270,54 +277,17 @@ final class FolderDragView: NSView, NSDraggingSource {
     icon.frame = NSRect(x: (bounds.width - side) / 2, y: label.frame.height + 4, width: side, height: side)
   }
 
+  // The folder's file URL, the same pasteboard a Finder drag of the folder carries. The helper's event tap
+  // is off for the drag (Tap.enable), or the drop never lands.
   override func mouseDown(with event: NSEvent) {
+    Tap.shared?.enable(false)
     let item = NSDraggingItem(pasteboardWriter: url as NSURL)
     item.setDraggingFrame(icon.frame, contents: icon.image)
     beginDraggingSession(with: [item], event: event, source: self)
   }
 
   func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
-
-  func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-    if operation.contains(.copy) { onDropped() }
-  }
-}
-
-// After chrome://extensions opens, Chrome is in front and the settings window is behind it, so the folder
-// comes along in a small floating panel at the top right of the screen. It closes once the folder has
-// been dropped somewhere, or with its close button.
-final class ExtensionDropPanel {
-  static let shared = ExtensionDropPanel()
-  private var panel: NSPanel?
-
-  func show() {
-    if panel == nil { panel = make() }
-    guard let panel, let screen = NSScreen.main else { return }
-    let visible = screen.visibleFrame
-    panel.setFrameOrigin(NSPoint(x: visible.maxX - panel.frame.width - 24, y: visible.maxY - panel.frame.height - 24))
-    panel.orderFront(nil)
-  }
-
-  private func make() -> NSPanel {
-    let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
-                        styleMask: [.titled, .closable, .nonactivatingPanel, .utilityWindow], backing: .buffered, defer: false)
-    panel.title = "Monochrome extension"
-    panel.level = .floating
-    panel.isReleasedWhenClosed = false
-    panel.hidesOnDeactivate = false
-    panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-    let content = NSView(frame: panel.contentView!.bounds)
-    let folder = FolderDragView(url: ExtensionSettings.folder)
-    folder.frame = NSRect(x: 16, y: 20, width: 100, height: 96)
-    folder.onDropped = { [weak panel] in panel?.close() }
-    let text = NSTextField(wrappingLabelWithString: "Turn on Developer mode, top right of the page, then drag this folder onto the page.")
-    text.font = .systemFont(ofSize: 12)
-    text.frame = NSRect(x: 132, y: 40, width: 152, height: 76)
-    content.addSubview(folder)
-    content.addSubview(text)
-    panel.contentView = content
-    return panel
-  }
+  func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) { Tap.shared?.enable(true) }
 }
 
 // Routes: the rules as a list, first match first, with the selected one's fields under it. Every

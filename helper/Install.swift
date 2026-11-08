@@ -1,4 +1,4 @@
-// What installing used to do from helper/install.sh and setup.sh, done by the app when it starts, so a
+// What installing used to do from shell scripts, done by the app when it starts, so a
 // copy taken from the release zip or the build folder works once it is opened:
 //
 //   every launch   the native messaging host manifest for each Chrome (written only when it differs, so
@@ -51,13 +51,16 @@ enum Install {
   // (it may not have run yet); the others only when they have run on this Mac.
   static let hostFolders = ["Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary", "Chromium"]
 
-  // The extension IDs allowed to connect, written into Info.plist by helper/build.sh: the unpacked
-  // extension's (from the manifest key) and the Web Store's (store/id).
-  static var extensionIds: [String] { Bundle.main.object(forInfoDictionaryKey: "MonochromeExtensionIDs") as? [String] ?? [] }
+  // The extension IDs allowed to connect, written to Resources/extension-ids.json by the project's run
+  // script: the unpacked extension's (from the manifest key) and the Web Store's (store/id).
+  static var extensionIds: [String] {
+    guard let url = Bundle.main.url(forResource: "extension-ids", withExtension: "json"), let data = try? Data(contentsOf: url) else { return [] }
+    return (try? JSONSerialization.jsonObject(with: data) as? [String]) ?? []
+  }
 
   static func registerHosts() {
     let ids = extensionIds
-    guard !ids.isEmpty else { return log.error("install: no extension IDs in Info.plist; host not registered") }
+    guard !ids.isEmpty else { return log.error("install: no extension-ids.json in the app; host not registered") }
     let host = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/host.sh").path
     let manifest: [String: Any] = ["name": hostName, "description": "Monochrome: helper app", "path": host, "type": "stdio",
                                    "allowed_origins": ids.map { "chrome-extension://\($0)/" }]

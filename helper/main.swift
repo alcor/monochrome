@@ -15,7 +15,7 @@
 //                   the extension's host is connected
 //   --routes [url [sender]]  the link rules (Routes.swift) and, for a URL, the rule it would take
 //   --settings      open the settings window of the running app (started if it is not)
-// Log: log stream --info --predicate 'subsystem == "local.monochrome"' (Accessibility shows there; asking
+// Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
 import AppKit
 import ServiceManagement
@@ -43,8 +43,8 @@ case "--demo-settings":
   let backdrop = showBackdropIfAsked()
   backdrop?.level = .normal
   DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-    let tab = CommandLine.arguments.contains("--general") ? 0 : CommandLine.arguments.contains("--extension") ? 2 : 1
-    SettingsWindow.shared.demo(tab: tab)
+    SettingsWindow.shared.demo(tab: CommandLine.arguments.contains("--general") ? 0 : 1)
+    if CommandLine.arguments.contains("--extension") { InstallExtensionPanel.shared.show() }
   }
   app.run()
 case "--demo-shade":

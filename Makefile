@@ -16,7 +16,7 @@ project:
 	xcodegen generate --quiet
 
 build: project
-	xcodebuild -project Monochrome.xcodeproj -scheme Monochrome -configuration Release \
+	xcodebuild -project Monochrome.xcodeproj -scheme Monochrome -configuration Release -destination "generic/platform=macOS" \
 	  -derivedDataPath $(DERIVED) -allowProvisioningUpdates -quiet build
 	@test -d "$(APP)"
 
@@ -48,7 +48,7 @@ release:
 	$(MAKE) build
 	mkdir -p dist
 	rm -f dist/Monochrome-app-$(VERSION).zip
-	ditto -c -k --keepParent "$(APP)" dist/Monochrome-app-$(VERSION).zip
+	ditto -c -k --sequesterRsrc --keepParent "$(APP)" dist/Monochrome-app-$(VERSION).zip
 	"$(SPARKLE_BIN)/generate_appcast" --download-url-prefix "https://github.com/arfct/monochrome/releases/download/v$(VERSION)/" \
 	  --link https://github.com/arfct/monochrome/releases -o appcast.xml dist
 	@echo

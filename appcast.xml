@@ -1,7 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>Monochrome</title>
-    <link>https://github.com/arfct/monochrome/releases</link>
-  </channel>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Monochrome</title>
+        <link>https://github.com/arfct/monochrome/releases</link>
+        <item>
+            <title>1.1</title>
+            <pubDate>Sat, 07 Nov 2026 23:06:46 -0800</pubDate>
+            <link>https://github.com/arfct/monochrome/releases</link>
+            <sparkle:version>1.1</sparkle:version>
+            <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.1/Monochrome-app-1.1.zip" length="3732525" type="application/octet-stream" sparkle:edSignature="SO8p9b6Mo1F70sDpjbCEOcvGDq54Z7PfEbJ4jH+z2ebmrrG6pGm/nf+VAr2Gj/3/Ky2kbYG5SJiLoDTcgWZIAw=="/>
+        </item>
+    </channel>
 </rss>

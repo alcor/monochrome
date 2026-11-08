@@ -62,10 +62,18 @@ final class App: NSObject, NSApplicationDelegate {
       send(["activate": id], to: connections.first { c in c.tabs.contains { $0.id == id } } ?? frontConnection)
     }
     player.onAction = { [weak self] action in self?.send(["player": ["action": action]], to: self?.playerOwner) }
+    minis.profileNames = { Profiles.names() }
     minis.onAction = { [weak self] action in
       guard let self else { return }
       let window = action["window"] as? Int
-      send(["mini": action], to: connections.first { c in c.minis.contains { $0.id == window } } ?? frontConnection)
+      let owner = connections.first { c in c.minis.contains { $0.id == window } } ?? frontConnection
+      // Another profile: the page goes there as a new tab, the way a routed link does, and the mini browser closes.
+      if action["action"] as? String == "openIn", let profile = action["profile"] as? String,
+         let url = URL(string: action["url"] as? String ?? "") {
+        deliver(url, to: ["window": "front"], profile: profile)
+        return send(["mini": ["window": window ?? 0, "action": "close"]], to: owner)
+      }
+      send(["mini": action], to: owner)
     }
     tap.onScroll = { [weak self] in
       guard let self else { return }

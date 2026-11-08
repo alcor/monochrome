@@ -57,9 +57,9 @@ function helperMessage(msg) {
 }
 
 // The helper's mini browser bar: open in Chrome, move to a window or group, go to an address, or close
-// a peek (a click on its shade).
+// it: a peek on a click on its shade, a mini browser whose page the app opened in another profile.
 async function miniFromHelper({ window, action, to, text }) {
-  if (action === 'closePeekBrowser') return chrome.windows.remove(window).catch(() => {});
+  if (action === 'closePeekBrowser' || action === 'close') return chrome.windows.remove(window).catch(() => {});
   const [tab] = await chrome.tabs.query({ windowId: window, active: true });
   if (!tab) return;
   if (action === 'open') await moveToMain(tab.id);

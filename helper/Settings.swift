@@ -12,6 +12,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let size = NSSize(width: 760, height: 464)
   var connectionsSummary: () -> String = { "" }
+  var connectedProfiles: () -> [String] = { [] }
+  var checkForUpdates: () -> Void = {}
   private var window: NSWindow?
   private var tabs: SettingsTabs?
   private var rulesModel: RulesModel?
@@ -37,8 +39,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     window.isReleasedWhenClosed = false
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .preference
-    var generalView = GeneralSettings(model: GeneralModel(connections: connectionsSummary))
+    var generalView = GeneralSettings(model: GeneralModel(connections: connectionsSummary, profiles: connectedProfiles))
     generalView.onLoadExtension = { [weak self] in self?.tabs?.selectedTabViewItemIndex = 2 }
+    generalView.onCheckForUpdates = { [weak self] in self?.checkForUpdates() }
     let general = NSHostingController(rootView: generalView)
     let rules = sampleRules ? RulesModel(sample: Rule.samples) : RulesModel()
     rulesModel = rules
@@ -99,10 +102,14 @@ final class GeneralModel: ObservableObject {
   @Published var accessibility = AXIsProcessTrusted()
   @Published var chrome = ""
   @Published var extensions = ""
+  @Published var connected: [String] = []
   let connections: () -> String
+  let profiles: () -> [String]
+  let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
 
-  init(connections: @escaping () -> String) {
+  init(connections: @escaping () -> String, profiles: @escaping () -> [String]) {
     self.connections = connections
+    self.profiles = profiles
     refresh()
   }
 
@@ -116,6 +123,7 @@ final class GeneralModel: ObservableObject {
     case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
     }
     extensions = connections()
+    connected = profiles()
   }
 
   func setLaunchAtLogin(_ on: Bool) {
@@ -141,6 +149,7 @@ struct GeneralSettings: View {
   private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
   var onLoadExtension: () -> Void = {}
+  var onCheckForUpdates: () -> Void = {}
 
   // Two columns: the app's own settings, and what it sees of Chrome and the extension.
   var body: some View {
@@ -158,6 +167,7 @@ struct GeneralSettings: View {
               Button("Open Settings…") { GeneralModel.openPrivacyPane("Privacy_Accessibility") }
             }
           }
+          LabeledContent("Version " + model.version) { Button("Check for Updates…", action: onCheckForUpdates) }
         } header: {
           Text("Monochrome")
         } footer: {
@@ -169,10 +179,10 @@ struct GeneralSettings: View {
           Text(model.chrome).foregroundStyle(.secondary)
         }
         Section {
-          if model.extensions.isEmpty {
+          if model.connected.isEmpty {
             Text("No profile has connected").foregroundStyle(.secondary)
           } else {
-            ForEach(model.extensions.components(separatedBy: ", "), id: \.self) { Text($0).foregroundStyle(.secondary) }
+            ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
           }
           Button("Load in a Profile…", action: onLoadExtension)
         } header: {

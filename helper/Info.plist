@@ -13,6 +13,9 @@
   <key>CFBundleIconName</key><string>Monochrome</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>SUFeedURL</key><string>https://raw.githubusercontent.com/arfct/monochrome/main/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>8KsAc6N3KqGJDXEUdTEnpkpDsadF5kqwph6Qonhpu8o=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleURLTypes</key>

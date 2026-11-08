@@ -10,6 +10,7 @@
 // what needs routing is which connection gets a message: the owner of a tab or mini browser, or the
 // one whose front window is the window in front on screen.
 import AppKit
+import Sparkle
 import ServiceManagement
 
 final class Connection {
@@ -24,9 +25,22 @@ final class Connection {
   init(peer: LineSocket) { self.peer = peer }
 }
 
+// The app has no Dock tile or windows most of the time, so an update found by a scheduled check would
+// show its alert behind whatever is in front. Sparkle asks background apps to handle that; here the app
+// comes forward for it.
+final class UpdateReminders: NSObject, SPUStandardUserDriverDelegate {
+  var supportsGentleScheduledUpdateReminders: Bool { true }
+
+  func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+    if !state.userInitiated { NSApp.activate(ignoringOtherApps: true) }
+  }
+}
+
 final class App: NSObject, NSApplicationDelegate {
   static let bundleId = "local.monochrome"
   let switcher = Switcher()
+  let reminders = UpdateReminders()
+  lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: reminders)
   let player = Player()
   let minis = MiniBrowsers()
   let profiles = Profiles()
@@ -44,6 +58,11 @@ final class App: NSObject, NSApplicationDelegate {
     if !Install.portable { try? SMAppService.mainApp.register() }
     Install.atLaunch()
     NSApp.mainMenu = mainMenu()
+    updater.startUpdater()
+    SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
+    SettingsWindow.shared.connectedProfiles = { [weak self] in
+      self?.connections.compactMap { c in c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
+    }
     SettingsWindow.shared.connectionsSummary = { [weak self] in
       guard let self, !connections.isEmpty else { return "Not connected" }
       let names = connections.compactMap { c in c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
@@ -349,6 +368,7 @@ final class App: NSObject, NSApplicationDelegate {
     let main = NSMenu()
     let app = NSMenu()
     app.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+    app.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
     app.addItem(.separator())
     app.addItem(withTitle: "Quit Monochrome", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     let file = NSMenu(title: "File")

@@ -28,7 +28,7 @@ final class SwitcherModel: ObservableObject {
 }
 
 // The profile HUD springs in and fades out; the switcher shows and hides at once, and its highlight is
-// ⌘Tab's, a dark fill that is simply behind the selected thumbnail.
+// ⌘Tab's, a fill (dark in light mode, light and outlined in dark) that is simply behind the selected thumbnail.
 enum Springs {
   static let appear = Animation.spring(duration: 0.35, bounce: 0.25)
   static let vanish = Animation.easeOut(duration: 0.12)
@@ -264,13 +264,15 @@ struct SwitcherView: View {
 }
 
 // A thumbnail with its favicon and title underneath, as Arc lays them out. Only the highlighted one has
-// anything around it: a 50 percent black rounded fill, no stroke, like the dark square behind the
-// selected app in ⌘Tab; nothing animated and nothing under it moving. The thumbnail is scaled to
+// anything around it: in light, a 50 percent black rounded fill, no stroke, like the dark square behind
+// the selected app in ⌘Tab; in dark, where black vanishes into the card, a white fill and outline.
+// Nothing animated and nothing under it moving. The thumbnail is scaled to
 // its width and hangs from the top, so a tall capture is cut at the bottom and a wide one leaves room.
 private struct TabCard: View {
   let tab: TabInfo
   let thumb: NSImage?
   let selected: Bool
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     let frame = RoundedRectangle(cornerRadius: Switcher.thumbRadius, style: .continuous)
@@ -302,7 +304,13 @@ private struct TabCard: View {
       .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
       .padding(Switcher.cardPad)
       .background {
-        if selected { wellShape.fill(.black.opacity(0.5)) }
+        if selected {
+          if colorScheme == .dark {
+            wellShape.fill(.white.opacity(0.16)).overlay(wellShape.strokeBorder(.white.opacity(0.55), lineWidth: 1.5))
+          } else {
+            wellShape.fill(.black.opacity(0.5))
+          }
+        }
       }
       HStack(spacing: 8) {
         if let favicon = tab.favicon {

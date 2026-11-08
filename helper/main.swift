@@ -43,8 +43,8 @@ case "--demo-settings":
   let backdrop = showBackdropIfAsked()
   backdrop?.level = .normal
   DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-    let tab = CommandLine.arguments.contains("--general") ? 0 : CommandLine.arguments.contains("--extension") ? 2 : 1
-    SettingsWindow.shared.demo(tab: tab)
+    SettingsWindow.shared.demo(tab: CommandLine.arguments.contains("--general") ? 0 : 1)
+    if CommandLine.arguments.contains("--extension") { InstallExtensionPanel.shared.show() }
   }
   app.run()
 case "--demo-shade":

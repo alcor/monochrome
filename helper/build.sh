@@ -19,6 +19,13 @@ cp "$here/Info.plist" "$build/Contents/Info.plist"
 cp "$here/host.sh" "$build/Contents/Resources/host.sh"
 chmod +x "$build/Contents/Resources/host.sh"
 
+# The extension itself, for a Load unpacked from the app's Extension tab. The manifest keeps its key, so
+# this copy has the ID the host is registered for, the same as a clone's.
+root=$(dirname "$here")
+extension="$build/Contents/Resources/extension"
+mkdir -p "$extension/icons"
+while read -r f; do cp "$root/$f" "$extension/$f"; done < "$root/store/files"
+
 # The extension IDs the app registers its native messaging host for: the unpacked extension's, which
 # is the first 32 hex digits of the SHA-256 of the manifest's public key written with a-p for 0-f (the
 # same from any folder), and the Web Store's (store/id).

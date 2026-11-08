@@ -38,6 +38,8 @@ targets:
       # arguments); it execs the app's binary with --host.
       - path: helper/host.sh
         buildPhase: resources
+      - path: helper/install-drag-icon.png
+        buildPhase: resources
     dependencies:
       - package: Sparkle
     settings:

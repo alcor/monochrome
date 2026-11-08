@@ -58,6 +58,11 @@ final class Tap {
     types.reduce(0) { $0 | (1 << $1.rawValue) }
   }
 
+  // The active tap holds every mouse-down and mouse-up until this process answers, and a drag that starts
+  // in this process then never reaches a drop target. The install window's folder drag turns it off for
+  // the length of the drag.
+  func enable(_ on: Bool) { for port in ports { CGEvent.tapEnable(tap: port, enable: on) } }
+
   func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
     let pass = Unmanaged.passUnretained(event)
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {

@@ -202,7 +202,9 @@ struct GeneralSettings: View {
 // which Load unpacked needs); the standard key window is what lets that drag begin.
 final class InstallExtensionPanel {
   static let shared = InstallExtensionPanel()
-  static let folder = Bundle.main.resourceURL!.appendingPathComponent("extension")
+  // Built as a directory file URL: a URL from appendingPathComponent wrote no pasteboard types here, so
+  // the drag carried nothing a drop target could take.
+  static let folder = URL(fileURLWithPath: Bundle.main.resourcePath! + "/extension", isDirectory: true)
   private var window: NSWindow?
 
   func show() {
@@ -250,7 +252,9 @@ final class FolderDragView: NSView, NSDraggingSource {
   init(url: URL) {
     self.url = url
     super.init(frame: .zero)
-    icon.image = NSWorkspace.shared.icon(forFile: url.path)
+    // A puzzle-piece mark with the extension's icon, so it reads as a browser extension being dragged.
+    icon.image = Bundle.main.url(forResource: "install-drag-icon", withExtension: "png").flatMap { NSImage(contentsOf: $0) }
+      ?? NSImage(contentsOf: url.appendingPathComponent("icons/128.png")) ?? NSWorkspace.shared.icon(forFile: url.path)
     icon.imageScaling = .scaleProportionallyUpOrDown
     label.font = .systemFont(ofSize: 11)
     label.textColor = .secondaryLabelColor
@@ -273,13 +277,17 @@ final class FolderDragView: NSView, NSDraggingSource {
     icon.frame = NSRect(x: (bounds.width - side) / 2, y: label.frame.height + 4, width: side, height: side)
   }
 
+  // The folder's file URL, the same pasteboard a Finder drag of the folder carries. The helper's event tap
+  // is off for the drag (Tap.enable), or the drop never lands.
   override func mouseDown(with event: NSEvent) {
+    Tap.shared?.enable(false)
     let item = NSDraggingItem(pasteboardWriter: url as NSURL)
     item.setDraggingFrame(icon.frame, contents: icon.image)
     beginDraggingSession(with: [item], event: event, source: self)
   }
 
   func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
+  func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) { Tap.shared?.enable(true) }
 }
 
 // Routes: the rules as a list, first match first, with the selected one's fields under it. Every

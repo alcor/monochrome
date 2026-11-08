@@ -16,7 +16,7 @@ Everything the developer dashboard asks for, in the order its pages ask. The ext
 
 Tabs that come back. Pin a tab, or put it in your locked group, and closing it brings it back where it was, on the page you chose.
 
-⌃Tab the way you remember it. Hold Control and step through the tabs you used last, newest first. With the free Monochrome app for Mac (github.com/alcor/monochrome/releases), you see them as thumbnails.
+⌃Tab the way you remember it. Hold Control and step through the tabs you used last, newest first. With the free Monochrome app for Mac (github.com/arfct/monochrome/releases), you see them as thumbnails.
 
 Windows for a quick look. ⌥⇧N opens a small browser from any app. Links from Slack and Mail open in one too, and one click moves the page into Chrome when it's worth keeping.
 
@@ -30,9 +30,9 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 
 **Small promo tile** (440×280): `store/screenshots/small-tile.jpg`; **marquee** (1400×560): `store/screenshots/marquee-tile.jpg`, both from `swift store/tiles.swift`
 
-**Homepage URL:** https://github.com/alcor/monochrome
+**Homepage URL:** https://github.com/arfct/monochrome
 
-**Support URL:** https://github.com/alcor/monochrome/issues
+**Support URL:** https://github.com/arfct/monochrome/issues
 
 ## Privacy practices
 
@@ -70,7 +70,7 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 ```
 No account is needed. On its own the extension does locked tabs (pin a tab, close it, it comes back), ⌃Tab by recent use (⌃.) and mini browsers.
 
-The thumbnail switcher, the mini browser bar, the peek shade, profile switching and link routing need the free companion app for macOS, which talks to the extension over native messaging: https://github.com/alcor/monochrome/releases/latest. Unzip, move Monochrome.app to Applications, right-click and Open (it is not notarized), allow Accessibility, then quit Chrome and reopen it from the app's Dock icon. Hold Control after ⌃Tab for the switcher; ⌥⇧N from any app opens a mini browser.
+The thumbnail switcher, the mini browser bar, the peek shade, profile switching and link routing need the free companion app for macOS, which talks to the extension over native messaging: https://github.com/arfct/monochrome/releases/latest. Unzip, move Monochrome.app to Applications, right-click and Open (it is not notarized), allow Accessibility, then quit Chrome and reopen it from the app's Dock icon. Hold Control after ⌃Tab for the switcher; ⌥⇧N from any app opens a mini browser.
 
 Without the app, nothing errors; the app's features are simply absent.
 ```

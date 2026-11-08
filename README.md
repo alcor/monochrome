@@ -36,7 +36,7 @@ Hotkeys are resolved through the active keyboard layout: ⌥⇧N is the key that
 
 ## Setup
 
-The built app is on the releases page, https://github.com/alcor/monochrome/releases/latest, as a zip: move Monochrome.app to Applications and open it. It is signed with an Apple Development certificate and not notarized, so the first open is a right-click and Open. Opened from the Finder it shows its settings; its General tab has the login item, the default-browser switch and the Accessibility status, and the extension's options page links to the same release. The extension itself comes from the Web Store or, as below, from this folder.
+The built app is on the releases page, https://github.com/arfct/monochrome/releases/latest, as a zip: move Monochrome.app to Applications and open it. It is signed with an Apple Development certificate and not notarized, so the first open is a right-click and Open. Opened from the Finder it shows its settings; its General tab has the login item, the default-browser switch and the Accessibility status, and the extension's options page links to the same release. The extension itself comes from the Web Store or, as below, from this folder.
 
 Building from source requires Google Chrome, git and the Xcode command line tools (`xcode-select --install`).
 
@@ -45,7 +45,7 @@ Chrome Beta, Dev, Canary and Chromium count as Chrome throughout: the install re
 1. Clone to a permanent folder. Chrome loads the extension from it, so not Downloads.
 
    ```bash
-   git clone https://github.com/alcor/monochrome.git ~/Code/monochrome
+   git clone https://github.com/arfct/monochrome.git ~/Code/monochrome
    ```
 
 2. Run the setup. It writes the Chrome App Shortcuts, builds and installs `~/Applications/Monochrome.app` as a login item with a Dock tile in Chrome's place, registers it as the extension's native messaging host and asks macOS to make it the default browser. Re-running is safe.

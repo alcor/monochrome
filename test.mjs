@@ -14,7 +14,7 @@ const ext = import.meta.dirname;
 const server = http.createServer((req, res) => res.end(`<title>${req.url}</title>${req.url}`)).listen(0);
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'arc-for-chrome-test-'));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'monochrome-test-'));
 const ctx = await chromium.launchPersistentContext(profile, {
   channel: 'chromium',
   headless: !process.env.HEADFUL,

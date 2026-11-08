@@ -1,8 +1,8 @@
 // Mini browsers' bars and the peek browser's shade, drawn here instead of in the page. The extension sends the mini
 // windows (where they are, their page, and for a peek browser the window it's over) and the places a
 // mini browser can be moved to; this side finds each one's Chrome window on screen and keeps a glass bar
-// on its top right: address (⌘L), Open in Chrome, and ▾ for a window or tab group. The bar's actions
-// go back over the bridge. Under a peek browser sits a shade the size and shape of the window it covers,
+// on its top right: address (⌘L), Open in Chrome, and ▾ for a window, tab group or another profile. The
+// bar's actions go back over the bridge; another profile is the app's own link delivery. Under a peek browser sits a shade the size and shape of the window it covers,
 // ordered just below the peek browser's window; a click on the shade closes the peek browser. Both only show while
 // Chrome is in front, and follow their windows from the window list, like the mini player.
 import AppKit
@@ -27,6 +27,7 @@ final class MiniBrowsers {
   var windows: [MiniBrowser] = []
   var shortcuts: [String: String] = [:]
   var onAction: ([String: Any]) -> Void = { _ in }
+  var profileNames: () -> [String] = { [] } // Chrome's Profiles menu, for the ▾ menu's other profiles
   private var bars: [Int: MiniBrowserBar] = [:]
   private let shade = PeekShade()
   private var lastFrames: [Int: CGRect] = [:]
@@ -55,7 +56,7 @@ final class MiniBrowsers {
         guard let window = resolve(w, in: onScreen), window.id == onScreen.first?.id else { continue }
         let bar = bars[w.id] ?? MiniBrowserBar(id: w.id, action: onAction)
         bars[w.id] = bar
-        bar.update(w, shortcuts: shortcuts, targets: w.targets)
+        bar.update(w, shortcuts: shortcuts, targets: w.targets, otherProfiles: profileNames().filter { $0 != w.profile })
         bar.place(over: Chrome.appKit(window.frame))
         if mouseDown, let last = lastFrames[w.id], last != window.frame { bar.vanish() }
         lastFrames[w.id] = window.frame
@@ -154,7 +155,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   private let glass = GlassBackdrop(rootView: PillGlass())
   private let link = FirstClickButton(), open = FirstClickButton(), caret = FirstClickButton()
   private let address = NSTextField()
-  private var url = "", targets: [Target] = []
+  private var url = "", targets: [Target] = [], otherProfiles: [String] = []
   private var openWidth: CGFloat = 0 // the Open button's own width; its frame is padded from it
   private var addressShown = false
 
@@ -196,9 +197,10 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     NotificationCenter.default.addObserver(self, selector: #selector(resignedKey), name: NSWindow.didResignKeyNotification, object: panel)
   }
 
-  func update(_ w: MiniBrowser, shortcuts: [String: String], targets: [Target]) {
+  func update(_ w: MiniBrowser, shortcuts: [String: String], targets: [Target], otherProfiles: [String]) {
     url = w.url
     self.targets = targets
+    self.otherProfiles = otherProfiles
     // "Nicholas (jitkoff.com)" is shown as its account, jitkoff.com; a name without one is shown whole.
     let profile = w.profile.map { name in name.split(separator: "(", maxSplits: 1).last.map { $0.replacingOccurrences(of: ")", with: "").trimmingCharacters(in: .whitespaces) } ?? name }
     let title = "Open in " + (profile ?? "Chrome") + (shortcuts["mini-open"].map { "  " + $0 } ?? "")
@@ -299,7 +301,8 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   @objc private func pressedOpen() { action(["window": id, "action": "open"]) }
   @objc private func pressedCaret() { showMenu() }
 
-  // ▾: every normal window, named by the tab it's on, with its tab groups.
+  // ▾: every normal window, named by the tab it's on, with its tab groups; then the other profiles, where
+  // the page opens as a new tab in the front window and this mini browser closes.
   func showMenu() {
     let menu = NSMenu()
     let colors: [String: NSColor] = ["grey": .systemGray, "blue": .systemBlue, "red": .systemRed, "yellow": .systemYellow, "green": .systemGreen,
@@ -328,6 +331,19 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
       }
       menu.addItem(.separator())
     }
+    if !otherProfiles.isEmpty {
+      let header = NSMenuItem(title: "Other profiles", action: nil, keyEquivalent: "")
+      header.isEnabled = false
+      menu.addItem(header)
+      for name in otherProfiles {
+        let item = NSMenuItem(title: name, action: #selector(openIn(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = name
+        item.indentationLevel = 1
+        menu.addItem(item)
+      }
+      menu.addItem(.separator())
+    }
     let settings = NSMenuItem(title: "Monochrome Settings…", action: #selector(openSettings), keyEquivalent: "")
     settings.target = self
     menu.addItem(settings)
@@ -339,6 +355,11 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   @objc private func moveTo(_ item: NSMenuItem) {
     guard let to = item.representedObject as? [String: Int] else { return }
     action(["window": id, "action": "move", "to": to])
+  }
+
+  @objc private func openIn(_ item: NSMenuItem) {
+    guard let profile = item.representedObject as? String else { return }
+    action(["window": id, "action": "openIn", "profile": profile, "url": url])
   }
 }
 

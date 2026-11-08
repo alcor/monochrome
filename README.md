@@ -71,7 +71,7 @@ The scripts in `helper/`:
 | ⌥⇧N, from any app | New mini browser | app; extension command as fallback |
 | ⌥⌘-click | Open the link in a mini browser | app only |
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
-| ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window or tab group | app; extension commands as fallback |
+| ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | Esc, in a mini browser | Close it | extension |
 | ⌃⌥→, ⌃⌥← | Next, previous Chrome profile | app |
 | ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu | app |
@@ -106,7 +106,7 @@ A mini browser is a popup window: no tab strip, no sidebar, ⌘[ for back. Size 
 - ⌥⇧N from any app opens one with a search box: a URL, or a search in Chrome's default engine, then Enter.
 - A link from another app opens one. The app is the default browser, so the link reaches it, and it asks the extension to open the window directly. When the extension is not connected, the app hands the link to Chrome, where it shows in the main window briefly before becoming a mini browser.
 - ⌥⌘-click on any page opens the link in one. The tap sees the click; there is no fallback.
-- The bar, top right over the title bar, is a panel of the app: a link button or ⌘L for the address field, Open in Chrome or ⌘O to move the page into the main window, a caret or ⇧⌘O for the list of windows and groups, each window named by its active tab. The bar hides while the window is dragged and while the mini browser is not the key window. Without the app, the same bar is drawn inside the page.
+- The bar, top right over the title bar, is a panel of the app: a link button or ⌘L for the address field, Open in Chrome or ⌘O to move the page into the main window, a caret or ⇧⌘O for the list of windows and groups, each window named by its active tab, and under them the other profiles, where the page opens as a new tab in the front window and the mini browser closes. The bar hides while the window is dragged and while the mini browser is not the key window. Without the app, the same bar is drawn inside the page.
 
 ## Links from other apps follow rules
 

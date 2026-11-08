@@ -4,7 +4,7 @@
 // - ⌥⌘-click a link opens it in one (peek-click.js)
 // - a link from a locked tab (pinned or CoreCore) that opens a new tab opens as a peek: a mini browser
 //   over the window it came from, page behind dimmed; focusing any other window closes it
-// - "Open in Chrome" moves the page into the main window as a normal tab; ▾ picks a window or tab group
+// - "Open in Chrome" moves the page into the main window as a normal tab; ▾ picks a window or tab group, or another profile (the app opens it there)
 //   (both also have shortcuts, see README)
 // - an "Open in Chrome" bar sits top-right of the page (mini-browser-bar.js)
 // - left unfocused for 12 hours, a mini browser closes

@@ -10,7 +10,7 @@ import UserNotifications
 
 enum Chrome {
   // Every Chrome the extension runs in, each with its own profiles, extension copy and native
-  // messaging host folder (install.sh registers with each one installed). Their windows and
+  // messaging host folder (Install.swift registers with each one that has run). Their windows and
   // connections are handled together; stable comes first and is what the Dock icon and the login
   // item start when none is running. `name` is what their window titles carry.
   struct Variant { let bundleId: String, name: String }

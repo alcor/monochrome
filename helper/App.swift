@@ -1,4 +1,5 @@
-// The app half: launched at login (it registers itself as a login item) and from the Dock, where it
+// The app half: launched at login (it registers itself as a login item, and does the rest of the
+// install at each launch: Install.swift) and from the Dock, where it
 // takes Chrome's place so that opening Chrome goes through it and gets the launch flags. Also the
 // default browser: links from other apps arrive here and go to the extension over the bridge, which
 // opens them as mini browsers without a tab ever passing through the main window. If the extension isn't
@@ -40,7 +41,8 @@ final class App: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     signal(SIGPIPE, SIG_IGN)
     NSApp.setActivationPolicy(.accessory)
-    try? SMAppService.mainApp.register()
+    if !Install.portable { try? SMAppService.mainApp.register() }
+    Install.atLaunch()
     NSApp.mainMenu = mainMenu()
     SettingsWindow.shared.connectionsSummary = { [weak self] in
       guard let self, !connections.isEmpty else { return "Not connected" }

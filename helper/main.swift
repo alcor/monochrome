@@ -1,8 +1,12 @@
 // Monochrome.app: one binary, picked by argument.
-//   (none)          the app: login item, Dock stand-in for Chrome, default browser, ⌃Tab tap, panels
+//   (none)          the app: login item, Dock stand-in for Chrome, default browser, ⌃Tab tap, panels;
+//                   installs itself at launch (Install.swift)
+//   --portable      the app without the login item, Dock tile, default browser or App Shortcuts: only the
+//                   native messaging host is registered, for a test run from the build folder
 //   --host          native messaging host, spawned by Chrome for the extension (Host.swift)
 //   --make-default  ask macOS to make this the default browser (a system dialog), then quit
 //   --unregister    remove the login item, then quit
+//   --register-host write the native messaging host manifests for this copy of the app, then quit
 //   --demo          show the ⌃Tab switcher with sample tabs, to look at it (nothing else runs); prints
 //                   the panel's rectangle on stderr for screencapture -R
 //   --demo-shade    the peek browser shade over Chrome's second window, ordered below its first; prints its rectangle
@@ -80,14 +84,12 @@ case "--unregister":
   try? SMAppService.mainApp.unregister()
   exit(0)
 case "--make-default":
-  // Both schemes: the system's browser picker follows http, and https is where links actually go.
-  let group = DispatchGroup()
-  for scheme in ["http", "https"] {
-    group.enter()
-    NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme) { _ in group.leave() }
-  }
-  group.notify(queue: .main) { exit(0) }
+  Install.makeDefaultBrowser { exit(0) }
   RunLoop.main.run()
+case "--register-host":
+  // The host manifests alone, for the tests and for a build that is not opened.
+  Install.registerHosts()
+  exit(0)
 default:
   let app = NSApplication.shared
   let delegate = App()

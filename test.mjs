@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import net from 'node:net';
 
 const ext = import.meta.dirname;
 const server = http.createServer((req, res) => res.end(`<title>${req.url}</title>${req.url}`)).listen(0);
@@ -403,7 +404,7 @@ if (process.env.HEADFUL) {
   console.log('mini browser: link from another app: ok');
 } else console.log('mini browser: link from another app: skipped (run with HEADFUL=1)');
 
-// The extension ID Chrome assigns comes from the manifest key, the way helper/install.sh computes it.
+// The extension ID Chrome assigns comes from the manifest key, the way helper/build.sh computes it.
 const idFromKey = key => [...crypto.createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32)]
   .map(c => String.fromCharCode(97 + parseInt(c, 16))).join('');
 assert.equal(await sw.evaluate(() => chrome.runtime.id), idFromKey(JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).key));
@@ -438,7 +439,7 @@ await close(song);
 assert.equal(await sw.evaluate(id => music.has(id), song), false);
 console.log('mini player: track info and buttons: ok');
 
-// The helper's host role (if built: helper/install.sh) reads a message that arrives in pieces, stays up
+// The helper's host role (if built: helper/build.sh) reads a message that arrives in pieces, stays up
 // without the app half, and quits when Chrome closes the connection.
 const helperBinary = path.join(ext, 'helper/build/Monochrome.app/Contents/MacOS/Monochrome');
 if (fs.existsSync(helperBinary)) {
@@ -456,8 +457,36 @@ if (fs.existsSync(helperBinary)) {
   p.stdin.end();
   assert.equal(await new Promise(r => p.on('exit', r)), 0);
   console.log('helper: host reads messages, quits with Chrome: ok');
-} else console.log('helper: host: skipped (run helper/install.sh)');
+} else console.log('helper: host: skipped (run helper/build.sh)');
 
 await ctx.close();
+
+// The app registers its own native messaging host (Install.swift): with the manifest it writes, a fresh
+// Chromium's extension reaches the host, and the host reaches a socket standing in for the app.
+if (fs.existsSync(helperBinary)) {
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'monochrome-host-test-'));
+  const hosts = path.join(fresh, 'NativeMessagingHosts');
+  const register = spawn(helperBinary, ['--register-host'], { stdio: 'inherit', env: { ...process.env, MONOCHROME_HOSTS: hosts } });
+  assert.equal(await new Promise(r => register.on('exit', r)), 0);
+  const manifest = JSON.parse(fs.readFileSync(path.join(hosts, 'monochrome_helper.json'), 'utf8'));
+  assert.equal(manifest.path, path.join(ext, 'helper/build/Monochrome.app/Contents/Resources/host.sh'));
+  const id = idFromKey(JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).key);
+  assert.ok(manifest.allowed_origins.includes(`chrome-extension://${id}/`));
+  const sock = path.join(fresh, 'app.sock');
+  const lines = [];
+  const app = net.createServer(c => c.on('data', d => lines.push(...d.toString().split('\n').filter(Boolean)))).listen(sock);
+  const ctx2 = await chromium.launchPersistentContext(fresh, {
+    channel: 'chromium', headless: !process.env.HEADFUL,
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
+    env: { ...process.env, MONOCHROME_SOCKET: sock, MONOCHROME_NO_LAUNCH: '1' },
+  });
+  for (let i = 0; i < 100 && !lines.length; i++) await sleep(100);
+  assert.ok(lines.length, 'no message reached the app socket through the registered host');
+  await ctx2.close();
+  app.close();
+  fs.rmSync(fresh, { recursive: true, force: true });
+  console.log('helper: app-registered host connects the extension to the app: ok');
+} else console.log('helper: registered host: skipped (run helper/build.sh)');
+
 server.close();
 fs.rmSync(profile, { recursive: true, force: true });

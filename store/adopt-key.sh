@@ -1,7 +1,7 @@
 #!/bin/sh
 # After the first upload the Chrome Web Store assigns the extension its key and ID. Install the store's
 # copy once in any profile, then run this: it finds that copy's manifest in Chrome's profile folders,
-# copies its `key` into this manifest, and re-registers the helper for the ID, so the unpacked
+# copies its `key` into this manifest, and rebuilds and reinstalls the helper so it registers for the ID, so the unpacked
 # extension loaded from this folder has the store's ID from then on.
 #   store/adopt-key.sh <extension id from the dashboard>
 set -e

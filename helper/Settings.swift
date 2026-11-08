@@ -123,12 +123,7 @@ final class GeneralModel: ObservableObject {
   }
 
   func makeDefault() {
-    let group = DispatchGroup()
-    for scheme in ["http", "https"] {
-      group.enter()
-      NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme) { _ in group.leave() }
-    }
-    group.notify(queue: .main) { [weak self] in self?.refresh() }
+    Install.makeDefaultBrowser { [weak self] in self?.refresh() }
   }
 
   static func openPrivacyPane(_ anchor: String) {

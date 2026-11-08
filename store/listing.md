@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Everything the developer dashboard asks for, in the order its pages ask. The extension package is `store/pack.sh`'s zip in `dist/`; the app's zip on the release is `ditto -c -k --keepParent helper/build/Monochrome.app dist/Monochrome-app-<version>.zip` after `helper/install.sh` has built and signed it.
+Everything the developer dashboard asks for, in the order its pages ask. The extension package is `store/pack.sh`'s zip in `dist/`; the app's zip on the release is `ditto -c -k --keepParent helper/build/Monochrome.app dist/Monochrome-app-<version>.zip` after `helper/build.sh` has built and signed it.
 
 ## Store listing
 

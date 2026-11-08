@@ -1,5 +1,5 @@
 #!/bin/sh
-# Undoes setup.sh: removes the helper app (login item, Dock icon, Chrome registration, the app itself),
+# Undoes setup.sh and what the app installs at launch: removes the helper app (login item, Dock icon, Chrome registration, the app itself),
 # this project's Chrome App Shortcuts (other App Shortcuts stay), and anything left from earlier
 # versions (Chrome Launcher, the Karabiner rule; Karabiner itself stays installed).
 # The extension is removed by hand in chrome://extensions. If the helper was your default browser,

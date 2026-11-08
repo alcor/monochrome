@@ -28,9 +28,9 @@ It does not touch Chrome's data folder, sync, or passwords. It does not replace 
 | Esc, in a mini browser | Close it | extension |
 | ⌃⌥→, ⌃⌥← | Next, previous Chrome profile | Monochrome |
 | ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu | Monochrome |
-| ⌘S | Collapse or show the vertical tab bar | `setup.sh`, as a macOS App Shortcut |
-| ⇧⌘S | Save Page As, moved off ⌘S | `setup.sh` |
-| ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | `setup.sh` |
+| ⌘S | Collapse or show the vertical tab bar | the app, as a macOS App Shortcut |
+| ⇧⌘S | Save Page As, moved off ⌘S | the app |
+| ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | the app |
 
 Hotkeys are resolved through the active keyboard layout: ⌥⇧N is the key that types N, on Dvorak as on QWERTY (`helper/Keyboard.swift`).
 
@@ -40,7 +40,7 @@ The built app is on the releases page, https://github.com/arfct/monochrome/relea
 
 Building from source requires Google Chrome, git and the Xcode command line tools (`xcode-select --install`).
 
-Chrome Beta, Dev, Canary and Chromium count as Chrome throughout: the install registers the host with each one that has run on this Mac, the extension loads in any of them, and their profiles' windows are told apart by the browser name in the title. The Dock tile and the login item start stable when none of them is running.
+Chrome Beta, Dev, Canary and Chromium count as Chrome throughout: the app registers the host with each one that has run on this Mac, the extension loads in any of them, and their profiles' windows are told apart by the browser name in the title. The Dock tile and the login item start stable when none of them is running.
 
 1. Clone to a permanent folder. Chrome loads the extension from it, so not Downloads.
 
@@ -48,13 +48,13 @@ Chrome Beta, Dev, Canary and Chromium count as Chrome throughout: the install re
    git clone https://github.com/arfct/monochrome.git ~/Code/monochrome
    ```
 
-2. Run the setup. It writes the Chrome App Shortcuts, builds and installs `~/Applications/Monochrome.app` as a login item with a Dock tile in Chrome's place, registers it as the extension's native messaging host and asks macOS to make it the default browser. Re-running is safe.
+2. Run the setup. It builds `~/Applications/Monochrome.app` and opens it. The app installs itself when it starts (`helper/Install.swift`), so a copy from the release zip does the same on first open: it registers the extension's native messaging host with each Chrome, adds its login item, writes the Chrome App Shortcuts, puts its Dock tile in Chrome's place and asks macOS to make it the default browser. The host registration and the App Shortcuts are rewritten on every launch, so a moved app fixes its own path; the Dock tile and the default-browser question happen once per app location. Re-running is safe.
 
    ```bash
    ~/Code/monochrome/setup.sh
    ```
 
-3. Allow Accessibility when Monochrome asks: System Settings → Privacy & Security (Device Control and Data Access on newer macOS) → Accessibility → Monochrome. The app is signed with a certificate from the keychain, a Developer ID or Apple Development one, so the grant survives rebuilds; `MONOCHROME_SIGN_IDENTITY` picks one by name, and the choice is remembered. With no certificate the build is ad-hoc signed, macOS treats each rebuild as a new app, and the setup resets the stale grant so the app can ask again.
+3. Allow Accessibility when Monochrome asks: System Settings → Privacy & Security (Device Control and Data Access on newer macOS) → Accessibility → Monochrome. The app is signed with a certificate from the keychain, a Developer ID or Apple Development one, so the grant survives rebuilds; `MONOCHROME_SIGN_IDENTITY` picks one by name, and the choice is remembered. With no certificate the build is ad-hoc signed, macOS treats each rebuild as a new app, and `helper/install.sh` resets the stale grant so the app can ask again.
 
 4. Quit Chrome and open it from the Monochrome tile in the Dock. That start carries the launch flags. Chrome started any other way runs without them and Monochrome posts a notification saying so.
 
@@ -141,7 +141,9 @@ Typing words and pressing Enter opens the history entry that matches them rather
 
 ## The helper is one binary in two roles
 
-`helper/install.sh` compiles the Swift in `helper/` into `~/Applications/Monochrome.app`. Run as the app, it registers itself as a login item, owns the event tap and every panel, the Dock tile and the default-browser role. Run as `--host`, which is what Chrome spawns for the extension's native messaging host, it relays between the extension's port and the app over a Unix socket in `~/Library/Application Support/Monochrome` and pings the extension every 20 seconds so Chrome does not stop the service worker for idleness. Each Chrome profile gets its own host process and connection; the app routes tab actions to the connection that owns the tab and front-window actions to the connection whose reported front window matches Chrome's.
+`helper/build.sh` compiles the Swift in `helper/` into `helper/build/Monochrome.app`, writes the extension IDs into its Info.plist and signs it; `helper/install.sh` runs it, copies the app to `~/Applications` and opens it. Run as the app, it installs itself (`helper/Install.swift`), registers itself as a login item, owns the event tap and every panel, the Dock tile and the default-browser role. Run as `--host`, which is what Chrome spawns for the extension's native messaging host, it relays between the extension's port and the app over a Unix socket in `~/Library/Application Support/Monochrome` and pings the extension every 20 seconds so Chrome does not stop the service worker for idleness. Each Chrome profile gets its own host process and connection; the app routes tab actions to the connection that owns the tab and front-window actions to the connection whose reported front window matches Chrome's.
+
+To try a build without installing it, open it with `--portable`: `open helper/build/Monochrome.app --args --portable`. It then registers only the native messaging host, with no login item, Dock tile, App Shortcuts or default-browser question; `--register-host` does the registration alone and quits.
 
 `Monochrome --status` prints the layout's keycodes, whether the app is running and whether the socket exists; `--routes` prints the link rules; `--settings` opens the settings window, which also opens on a double-click of the app in the Finder (a click on its Dock tile opens Chrome instead) and from the ▾ menu of any mini browser's bar. The window has two tabs, General (login item, default browser, Accessibility, Chrome's launch flags, which profiles are connected) and Router (the rules). While it is open the app is in the Dock with a menu bar; when it closes the app goes back to running without either. Logs go to the unified log under subsystem `local.monochrome`:
 
@@ -159,7 +161,7 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 
 ## The store package is the extension alone
 
-`store/pack.sh` zips the extension's files into `dist/monochrome-extension-<version>.zip` for the Chrome Web Store; the app, tests, docs and scripts stay out, and so does the manifest's `key`, which the store refuses in an upload. The store assigned the ID in `store/id` on the first upload, and `helper/install.sh` registers the helper for that ID as well as the unpacked one's, so either copy reaches it. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest. `store/listing.md` holds the listing's text, the permission justifications and the privacy answers, the listing links Artifact's shared policy at artifact.com/privacy?Monochrome and `docs/privacy.md` is the detailed statement, and `store/screenshots/` the images: the switcher, profile HUD and Router tab from `Monochrome --demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, each over a plain window with sample data, and the promo tiles from `swift store/tiles.swift`. The store takes JPEG or PNG without alpha; these are JPEG.
+`store/pack.sh` zips the extension's files into `dist/monochrome-extension-<version>.zip` for the Chrome Web Store; the app, tests, docs and scripts stay out, and so does the manifest's `key`, which the store refuses in an upload. The store assigned the ID in `store/id` on the first upload, and `helper/build.sh` writes that ID into the app beside the unpacked one's, so the app registers its host for both, so either copy reaches it. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest. `store/listing.md` holds the listing's text, the permission justifications and the privacy answers, the listing links Artifact's shared policy at artifact.com/privacy?Monochrome and `docs/privacy.md` is the detailed statement, and `store/screenshots/` the images: the switcher, profile HUD and Router tab from `Monochrome --demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, each over a plain window with sample data, and the promo tiles from `swift store/tiles.swift`. The store takes JPEG or PNG without alpha; these are JPEG.
 
 ## Tests
 
@@ -167,7 +169,7 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 npm install && npx playwright-core install chromium && npm test
 ```
 
-The suite drives headless Chromium with the extension loaded and spawns the built helper in host mode against a private socket. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
+The suite drives headless Chromium with the extension loaded and spawns the built helper (`helper/build.sh`) in host mode against a private socket. It also has the app write its host manifest into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
 
 ## Not verified
 

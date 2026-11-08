@@ -10,7 +10,7 @@ import SwiftUI
 
 final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
-  static let size = NSSize(width: 440, height: 464)
+  static let size = NSSize(width: 760, height: 464)
   var connectionsSummary: () -> String = { "" }
   private var window: NSWindow?
   private var tabs: SettingsTabs?
@@ -42,7 +42,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     rulesModel = rules
     let routes = NSHostingController(rootView: RoutesSettings(model: rules))
     general.preferredContentSize = Self.size
-    routes.preferredContentSize = NSSize(width: Self.size.width, height: 640) // the list and the selected rule's fields
+    routes.preferredContentSize = NSSize(width: Self.size.width, height: 500) // the rules beside the selected one's fields
     let tabs = SettingsTabs()
     for (controller, label, symbol) in [(general, "General", "gearshape"), (routes, "Router", "arrow.triangle.branch")] as [(NSViewController, String, String)] {
       let item = NSTabViewItem(viewController: controller)
@@ -293,6 +293,20 @@ struct RoutesSettings: View {
   @ObservedObject var model: RulesModel
 
   var body: some View {
+    HStack(spacing: 0) {
+      rulesList.frame(width: 280)
+      Divider()
+      if let rule = model.selected {
+        RuleForm(rule: rule)
+      } else {
+        Text(model.rules.isEmpty ? "Add a rule to send some links elsewhere." : "Select a rule to edit it.")
+          .foregroundStyle(.secondary).font(.callout).frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+    }
+    .padding(.top, 8)
+  }
+
+  private var rulesList: some View {
     VStack(spacing: 0) {
       List(selection: $model.selection) {
         ForEach(model.rules) { rule in
@@ -306,10 +320,9 @@ struct RoutesSettings: View {
         .onMove { from, to in model.rules.move(fromOffsets: from, toOffset: to) }
       }
       .scrollContentBackground(.hidden)
-      .frame(height: 220)
       .overlay(alignment: .center) {
         if model.rules.isEmpty {
-          Text("Links from other apps open as mini browsers.\nAdd a rule to send some elsewhere.")
+          Text("Links from other apps\nopen as mini browsers.")
             .multilineTextAlignment(.center).foregroundStyle(.secondary).font(.callout)
         }
       }
@@ -323,16 +336,9 @@ struct RoutesSettings: View {
           .font(.caption)
       }
       .buttonStyle(.borderless)
-      .padding(.horizontal, 20)
+      .padding(.horizontal, 12)
       .padding(.bottom, 4)
-      Divider()
-      if let rule = model.selected {
-        RuleForm(rule: rule)
-      } else {
-        Spacer()
-      }
     }
-    .padding(.top, 8)
   }
 }
 

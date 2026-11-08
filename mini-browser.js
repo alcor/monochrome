@@ -13,7 +13,10 @@
 // Links from other apps come through the helper app, the default browser (helper/App.swift), straight to
 // openMiniBrowser; only without it do they land as a tab in the main window first and get moved out.
 
+// With no Chrome window to sit over, a mini browser opens at this size; otherwise it fills the last
+// focused window inset on every side.
 const MINI_SIZE = { width: 900, height: 700 };
+const MINI_INSET = 20;
 const MINI_ARCHIVE_MS = 12 * 60 * 60 * 1000;
 
 // The open mini browsers' window ids, in memory for the checks that run per window event; session
@@ -33,9 +36,10 @@ async function miniBounds() {
   const w = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
   if (!w) return MINI_SIZE;
   return {
-    ...MINI_SIZE,
-    left: Math.round(w.left + (w.width - MINI_SIZE.width) / 2),
-    top: Math.round(w.top + (w.height - MINI_SIZE.height) / 3),
+    left: w.left + MINI_INSET,
+    top: w.top + MINI_INSET,
+    width: w.width - 2 * MINI_INSET,
+    height: w.height - 2 * MINI_INSET,
   };
 }
 

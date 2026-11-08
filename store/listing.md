@@ -24,11 +24,11 @@ Links that know where to go. With the app, rules send each link to the right pro
 
 Works with Chrome's vertical tabs. Nothing is added to the window, and nothing leaves your Mac.
 
-**Icon:** `icons/128.png`
+**Icon:** `store/icon-128.png`, 96 by 96 artwork on a 128 by 128 canvas, from `swift store/icon.swift store/icon-source.png store/icon-128.png`
 
 **Screenshots** (1280×800 JPEG), in order: `store/screenshots/1-switcher.jpg`, `2-profiles.jpg`, `3-router.jpg`, made with `Monochrome --demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`
 
-**Small promo tile** (440×280): `store/screenshots/small-tile.jpg`; **marquee** (1400×560): `store/screenshots/marquee-tile.jpg`, both from `swift store/tiles.swift`
+**Small promo tile** (440×280): `store/screenshots/small-tile.jpg`; **marquee** (1400×560): `store/screenshots/marquee-tile.jpg`, both from `swift store/tiles.swift store/icon-source.png <out dir>`, then saved as JPEG
 
 **Homepage URL:** https://github.com/arfct/monochrome
 

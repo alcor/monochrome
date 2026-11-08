@@ -68,6 +68,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     show()
     tabs?.selectedTabViewItemIndex = tab
     rulesModel?.selection = rulesModel?.rules.first?.id
+    if let anchor = Chrome.demoAnchor, let window {
+      window.setFrameOrigin(NSPoint(x: anchor.midX - window.frame.width / 2, y: anchor.midY - window.frame.height / 2))
+    }
     NSApp.activate(ignoringOtherApps: true)
     window?.makeKeyAndOrderFront(nil)
   }

@@ -5,7 +5,7 @@
 import Foundation
 import os
 
-let log = Logger(subsystem: "local.monochrome", category: "helper")
+let log = Logger(subsystem: "com.artifact.monochrome", category: "helper")
 
 enum Socket {
   static var path: String {

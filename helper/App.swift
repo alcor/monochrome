@@ -37,7 +37,7 @@ final class UpdateReminders: NSObject, SPUStandardUserDriverDelegate {
 }
 
 final class App: NSObject, NSApplicationDelegate {
-  static let bundleId = "local.monochrome"
+  static let bundleId = "com.artifact.monochrome"
   let switcher = Switcher()
   let reminders = UpdateReminders()
   lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: reminders)

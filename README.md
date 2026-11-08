@@ -43,23 +43,18 @@ The extension's fallback commands are in `chrome://extensions/shortcuts`. Chrome
 
 ## Build from source
 
-Requires git and the Xcode command line tools (`xcode-select --install`). Xcode itself is needed only for the app icon; without it the app uses Chrome's.
+Requires git, Xcode and XcodeGen (`brew install xcodegen`), the same setup as the other Artifact apps: `project.yml` describes the app, `make project` generates `Monochrome.xcodeproj` from it (the project is not committed), and the Makefile has the rest.
 
 ```bash
 git clone https://github.com/arfct/monochrome.git ~/Code/monochrome
-~/Code/monochrome/setup.sh
+cd ~/Code/monochrome && make install
 ```
 
-Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension from it. `setup.sh` runs `helper/install.sh`, which builds the app, copies it to `~/Applications` and opens it; from there the app installs itself as in step 2 above. Re-running is safe.
+Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension from it. `make install` builds the Release configuration into `build/`, replaces `~/Applications/Monochrome.app` and opens it; from there the app installs itself as in step 2 above. Re-running is safe. `make run` opens the build as it is with `--portable`, which registers the host only: no login item, Dock tile, App Shortcuts or default-browser question. `Monochrome --register-host` writes the host registration and quits.
 
-The scripts in `helper/`:
+The project's one run script copies the extension's files (`store/files`) into the app's `Contents/Resources/extension`, makes `host.sh` executable, and writes the extension IDs the app registers its host for to `Contents/Resources/extension-ids.json`: the unpacked one, derived from the manifest key, and the store's from `store/id`. Sparkle comes in as a Swift package. `helper/Info.plist` is generated from `project.yml` and ignored by git.
 
-- `build.sh` compiles the Swift into `helper/build/Monochrome.app`, writes the extension IDs (the unpacked one from the manifest key and the store's from `store/id`) into its `Info.plist`, and signs it. It installs nothing.
-- `install.sh` runs `build.sh`, copies the app to `~/Applications` and opens it.
-
-**Signing.** macOS ties the Accessibility grant to the app's signature. `build.sh` signs with a certificate from the keychain, a Developer ID or Apple Development one, so the grant survives rebuilds; `MONOCHROME_SIGN_IDENTITY` picks one by name, and the choice is remembered in `~/Library/Application Support/Monochrome/identity`. With no certificate the build is signed ad hoc, macOS treats each rebuild as a new app, and `install.sh` resets the stale grant so the app can ask again.
-
-**Trying a build without installing it.** `open helper/build/Monochrome.app --args --portable` runs the app with the host registration only: no login item, Dock tile, App Shortcuts or default-browser question. `Monochrome --register-host` writes the host registration and quits.
+**Signing.** macOS ties the Accessibility grant to the app's signature. The project signs automatically with the Artifact team, so the grant survives rebuilds on a Mac with that team's certificate; without one, Xcode's ad-hoc fallback makes each rebuild a new app to macOS and Accessibility has to be allowed again.
 
 ## Shortcuts
 
@@ -160,10 +155,10 @@ Typing words and pressing Enter opens the history entry that matches them rather
 
 The settings window has three tabs: General, in two columns (login item, default browser, Accessibility, the version with Check for Updates…; Chrome's launch flags and which profiles' extensions are connected), Router (the rules) and Extension (the copy of the extension inside the app, `Contents/Resources/extension`, as a folder to drag onto chrome://extensions, with the steps; its button opens that page and puts a small floating panel with the folder over Chrome). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
-Logs go to the unified log under subsystem `local.monochrome`:
+Logs go to the unified log under subsystem `com.artifact.monochrome`:
 
 ```bash
-/usr/bin/log stream --info --predicate 'subsystem == "local.monochrome"'
+/usr/bin/log stream --info --predicate 'subsystem == "com.artifact.monochrome"'
 ```
 
 ## Uninstall
@@ -176,15 +171,15 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 
 ## Releases and the Web Store
 
-- **The app** is released as a zip on GitHub by `helper/release.sh <version>`: it sets the version in `helper/Info.plist` and `manifest.json`, builds, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
-- **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab, and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in Info.plist, so a release from another Mac needs that key exported from this one. `helper/sparkle.sh` fetches Sparkle 2.10.1 into `~/Library/Caches/Monochrome`, checked against a pinned SHA-256; `build.sh` links it and signs its updater and XPC services. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
+- **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, builds, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
+- **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab, and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `project.yml`, so a release from another Mac needs that key exported from this one. Sparkle 2.10.1 is a Swift package dependency in `project.yml`; `generate_appcast` comes from its checkout under `build/SourcePackages`. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
 - **The extension** is packed by `store/pack.sh` into `dist/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
 - `store/listing.md` holds the listing text, permission justifications and privacy answers. The listing links Artifact's shared policy at artifact.com/privacy?Monochrome; `docs/privacy.md` is the detailed statement. `store/screenshots/` holds the switcher, profile HUD and Router tab from `--demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, and the promo tiles from `swift store/tiles.swift`, all JPEG.
 
 ## Tests
 
 ```bash
-npm install && npx playwright-core install chromium && helper/build.sh && npm test
+npm install && npx playwright-core install chromium && make build && npm test
 ```
 
 The suite drives headless Chromium with the extension loaded. With the app built, it also spawns it in host mode against a private socket, and has the app write its host registration into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.

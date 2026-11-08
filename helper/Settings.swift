@@ -5,6 +5,7 @@
 // window is on screen it is an app in the Dock with a menu bar, so the window can be found and
 // switched to, and back to a background app when the window closes.
 import AppKit
+import Combine
 import ServiceManagement
 import SwiftUI
 

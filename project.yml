@@ -1,0 +1,100 @@
+# The Mac app. `make project` turns this into Monochrome.xcodeproj (not committed); the Makefile has the
+# build, install and release targets. The extension at the repository root is not built by Xcode: the
+# run script below copies it into the app for the Extension tab's Load unpacked.
+name: Monochrome
+options:
+  bundleIdPrefix: com.artifact
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "13.0"
+  fileTypes:
+    icon:
+      file: true
+      buildPhase: resources
+settings:
+  base:
+    DEVELOPMENT_TEAM: TVA9Z8LD95
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    # Sparkle's updater and XPC services need it, and so does notarization.
+    ENABLE_HARDENED_RUNTIME: YES
+    # The version lives here, not in the plist; `make release VERSION=x.y` rewrites both numbers and the
+    # extension manifest's. Sparkle compares CFBundleVersion, so it is the version too.
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1.0"
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
+targets:
+  Monochrome:
+    type: application
+    platform: macOS
+    sources:
+      - path: helper
+        excludes: ["*.sh", "Info.plist", "build"]
+      # Chrome runs this as the native messaging host (a host manifest can name a program but not its
+      # arguments); it execs the app's binary with --host.
+      - path: helper/host.sh
+        buildPhase: resources
+    dependencies:
+      - package: Sparkle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.artifact.monochrome
+        PRODUCT_NAME: Monochrome
+        ASSETCATALOG_COMPILER_APPICON_NAME: Monochrome
+    info:
+      path: helper/Info.plist
+      properties:
+        CFBundleDisplayName: Monochrome
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleIconName: Monochrome
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+        # No Dock tile or menu bar until the settings window opens.
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.productivity
+        ITSAppUsesNonExemptEncryption: false
+        # The default-browser role: links from other apps arrive here and go to the extension.
+        CFBundleURLTypes:
+          - CFBundleURLName: Web site URL
+            CFBundleURLSchemes: [http, https]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Web page
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.html, public.xhtml]
+        # Sparkle: the appcast on main, and the public half of the EdDSA key in the releasing Mac's keychain.
+        SUFeedURL: https://raw.githubusercontent.com/arfct/monochrome/main/appcast.xml
+        SUPublicEDKey: 8KsAc6N3KqGJDXEUdTEnpkpDsadF5kqwph6Qonhpu8o=
+        SUEnableAutomaticChecks: true
+    postBuildScripts:
+      - name: Extension and host
+        basedOnDependencyAnalysis: false
+        script: |
+          # The extension's files (store/files, the list pack.sh zips) into Resources/extension, manifest
+          # key included, for the Extension tab's Load unpacked; host.sh executable; and the extension
+          # IDs the app registers its host for, as Resources/extension-ids.json: the unpacked one is the
+          # first 32 hex digits of the SHA-256 of the manifest's key written with a-p for 0-f, the Web
+          # Store's is store/id. (A file, not an Info.plist key: Xcode processes the plist on its own
+          # schedule, which can come after this script.)
+          set -eu
+          resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          extension="$resources/extension"
+          rm -rf "$extension"
+          mkdir -p "$extension/icons"
+          while read -r f; do cp "$SRCROOT/$f" "$extension/$f"; done < "$SRCROOT/store/files"
+          chmod +x "$resources/host.sh"
+          python3 -I - "$SRCROOT" "$resources/extension-ids.json" <<'PY'
+          import base64, hashlib, json, os, sys
+          root, out = sys.argv[1:]
+          key = base64.b64decode(json.load(open(os.path.join(root, 'manifest.json')))['key'])
+          ids = [''.join(chr(97 + int(c, 16)) for c in hashlib.sha256(key).hexdigest()[:32])]
+          store = os.path.join(root, 'store/id')
+          if os.path.exists(store):
+              ids.append(open(store).read().strip())
+          json.dump(list(dict.fromkeys(i for i in ids if i)), open(out, 'w'))
+          PY

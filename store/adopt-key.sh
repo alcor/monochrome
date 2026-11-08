@@ -21,4 +21,4 @@ with open('manifest.json', 'w') as f:
     f.write('\n')
 print('manifest.json: key adopted from', sys.argv[1])
 EOF
-./helper/install.sh
+make install

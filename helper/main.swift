@@ -15,7 +15,7 @@
 //                   the extension's host is connected
 //   --routes [url [sender]]  the link rules (Routes.swift) and, for a URL, the rule it would take
 //   --settings      open the settings window of the running app (started if it is not)
-// Log: log stream --info --predicate 'subsystem == "local.monochrome"' (Accessibility shows there; asking
+// Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
 import AppKit
 import ServiceManagement

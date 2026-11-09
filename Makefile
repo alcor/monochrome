@@ -3,12 +3,15 @@
 # make install   build, then replace ~/Applications/Monochrome.app and open it; the app installs the rest
 #                itself at launch (helper/Install.swift)
 # make test      the extension's and host's tests (needs a build for the host ones)
-# make release VERSION=1.1   version into project.yml and manifest.json, build, dist/Monochrome-app-1.1.zip,
-#                appcast.xml; prints the publishing commands
+# make release VERSION=1.1   version into project.yml and manifest.json, a Developer ID build notarized by
+#                Apple (Xcode signs with the team's cloud-managed certificate and submits it; needs Xcode signed in
+#                to an account on team TVA9Z8LD95 that may use Developer ID), dist/Monochrome-app-1.1.zip, appcast.xml; prints the publishing commands
 DERIVED := build
 APP     := $(DERIVED)/Build/Products/Release/Monochrome.app
 INSTALLED := $(HOME)/Applications/Monochrome.app
 SPARKLE_BIN := $(DERIVED)/SourcePackages/artifacts/sparkle/Sparkle/bin
+ARCHIVE := $(DERIVED)/Monochrome.xcarchive
+NOTARIZED := $(DERIVED)/notarized/Monochrome.app
 
 .PHONY: project build install run test pack release clean
 
@@ -45,10 +48,20 @@ release:
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=1.1"; exit 1; }
 	sed -i '' 's/^    MARKETING_VERSION: ".*"/    MARKETING_VERSION: "$(VERSION)"/; s/^    CURRENT_PROJECT_VERSION: ".*"/    CURRENT_PROJECT_VERSION: "$(VERSION)"/' project.yml
 	python3 -c "import json; m = json.load(open('manifest.json')); m['version'] = '$(VERSION)'; f = open('manifest.json', 'w'); json.dump(m, f, ensure_ascii=False, indent=2); f.write('\n')"
-	$(MAKE) build
+	$(MAKE) project
+	rm -rf "$(ARCHIVE)" $(DERIVED)/upload $(DERIVED)/notarized
+	xcodebuild -project Monochrome.xcodeproj -scheme Monochrome -configuration Release -destination "generic/platform=macOS" \
+	  -derivedDataPath $(DERIVED) -archivePath "$(ARCHIVE)" -allowProvisioningUpdates -quiet archive
+	xcodebuild -exportArchive -archivePath "$(ARCHIVE)" -exportOptionsPlist ExportOptions.plist \
+	  -exportPath $(DERIVED)/upload -allowProvisioningUpdates -quiet
+	@echo "waiting for the notary service"
+	until xcodebuild -exportNotarizedApp -archivePath "$(ARCHIVE)" -exportPath $(DERIVED)/notarized \
+	    -allowProvisioningUpdates >/dev/null 2>&1; do sleep 15; done
+	xcrun stapler validate "$(NOTARIZED)"
+	spctl --assess --type execute "$(NOTARIZED)"
 	mkdir -p dist
 	rm -f dist/Monochrome-app-$(VERSION).zip
-	ditto -c -k --sequesterRsrc --keepParent "$(APP)" dist/Monochrome-app-$(VERSION).zip
+	ditto -c -k --sequesterRsrc --keepParent "$(NOTARIZED)" dist/Monochrome-app-$(VERSION).zip
 	"$(SPARKLE_BIN)/generate_appcast" --download-url-prefix "https://github.com/arfct/monochrome/releases/download/v$(VERSION)/" \
 	  --link https://github.com/arfct/monochrome/releases -o appcast.xml dist
 	@echo

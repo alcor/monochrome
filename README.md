@@ -15,7 +15,7 @@ Monochrome does not touch Chrome's data folder, sync or passwords, and does not 
 
 Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chromium count as Chrome throughout.
 
-1. **Get the app.** Either download `Monochrome-app-<version>.zip` from https://github.com/arfct/monochrome/releases/latest, unzip it and move Monochrome.app to Applications, or build it from source (next section). The release is signed with an Apple Development certificate and not notarized, so the first open is a right-click and Open.
+1. **Get the app.** Either download `Monochrome-app-<version>.zip` from https://github.com/arfct/monochrome/releases/latest, unzip it and move Monochrome.app to Applications, or build it from source (next section). The release is signed with the Artifact Creative Foundation's Developer ID and notarized by Apple, so it opens like any downloaded app. Move it to Applications before the first open: at launch it registers its own location with Chrome.
 
 2. **Open the app.** It installs itself on launch (`helper/Install.swift`):
    - registers itself as the extension's native messaging host with each Chrome that has run on this Mac;
@@ -54,7 +54,7 @@ Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension 
 
 The project's one run script copies the extension's files (`store/files`) into the app's `Contents/Resources/extension`, makes `host.sh` executable, and writes the extension IDs the app registers its host for to `Contents/Resources/extension-ids.json`: the unpacked one, derived from the manifest key, and the store's from `store/id`. Sparkle comes in as a Swift package. `helper/Info.plist` is generated from `project.yml` and ignored by git.
 
-**Signing.** macOS ties the Accessibility grant to the app's signature. The project signs automatically with the Artifact team, so the grant survives rebuilds on a Mac with that team's certificate; without one, Xcode's ad-hoc fallback makes each rebuild a new app to macOS and Accessibility has to be allowed again.
+**Signing.** macOS ties the Accessibility grant to the app's signature. The project signs automatically with the Artifact team, so the grant survives rebuilds on a Mac with that team's certificate; without one, Xcode's ad-hoc fallback makes each rebuild a new app to macOS and Accessibility has to be allowed again. Releases are signed with Developer ID instead, a different certificate from the Apple Development one `make install` uses, so moving between a release and a local build asks for Accessibility again.
 
 ## Shortcuts
 
@@ -171,9 +171,9 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 
 ## Releases and the Web Store
 
-- **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, builds, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
+- **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, archives, has Xcode sign the archive with the team's cloud-managed Developer ID certificate and submit it to Apple's notary service, waits for the stapled app, checks it with `spctl`, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
 - **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab, and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `project.yml`, so a release from another Mac needs that key exported from this one. Sparkle 2.10.1 is a Swift package dependency in `project.yml`; `generate_appcast` comes from its checkout under `build/SourcePackages`. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
-- **The extension** is packed by `store/pack.sh` into `dist/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
+- **The extension** is packed by `store/pack.sh` into `dist/store/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
 - `store/listing.md` holds the listing text, permission justifications and privacy answers. The listing links Artifact's shared policy at artifact.com/privacy?Monochrome; `docs/privacy.md` is the detailed statement. `store/screenshots/` holds the switcher, profile HUD and Router tab from `--demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, and the promo tiles from `swift store/tiles.swift`, all JPEG.
 
 ## Tests

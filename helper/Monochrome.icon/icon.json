@@ -1,5 +1,7 @@
 {
-  "fill" : "system-light",
+  "fill" : {
+    "automatic-gradient" : "gray:0.25000,1.00000"
+  },
   "groups" : [
     {
       "blur-material" : null,
@@ -7,7 +9,7 @@
         {
           "fill-specializations" : [
             {
-              "value" : "system-dark"
+              "value" : "system-light"
             },
             {
               "appearance" : "dark",
@@ -45,7 +47,7 @@
         {
           "fill-specializations" : [
             {
-              "value" : "system-dark"
+              "value" : "system-light"
             },
             {
               "appearance" : "dark",

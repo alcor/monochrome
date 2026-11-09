@@ -95,8 +95,11 @@ final class MiniBrowsers {
 
   // The mini browser whose window is Chrome's front one.
   var frontWindow: MiniBrowser? {
-    guard let front = Chrome.windows().first else { return nil }
-    return windows.first { Chrome.match($0.frame, in: [front]) != nil }
+    // By window number, as follow() places the bars: mini browsers stacked over one window share a frame,
+    // so matching by frame could pick one behind the front one and open its hidden address field.
+    let onScreen = Chrome.windows()
+    guard let front = onScreen.first else { return nil }
+    return windows.first { resolve($0, in: onScreen)?.id == front.id }
   }
 
   func showAddress(_ id: Int) { bars[id]?.showAddress() }

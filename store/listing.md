@@ -70,7 +70,7 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 ```
 No account is needed. On its own the extension does locked tabs (pin a tab, close it, it comes back), ⌃Tab by recent use (⌃.) and mini browsers.
 
-The thumbnail switcher, the mini browser bar, the peek shade, profile switching and link routing need the free companion app for macOS, which talks to the extension over native messaging: https://github.com/arfct/monochrome/releases/latest. Unzip, move Monochrome.app to Applications, right-click and Open (it is not notarized), allow Accessibility, then quit Chrome and reopen it from the app's Dock icon. Hold Control after ⌃Tab for the switcher; ⌥⇧N from any app opens a mini browser.
+The thumbnail switcher, the mini browser bar, the peek shade, profile switching and link routing need the free companion app for macOS, which talks to the extension over native messaging: https://github.com/arfct/monochrome/releases/latest. Unzip, move Monochrome.app to Applications, open it, allow Accessibility, then quit Chrome and reopen it from the app's Dock icon. Hold Control after ⌃Tab for the switcher; ⌥⇧N from any app opens a mini browser.
 
 Without the app, nothing errors; the app's features are simply absent.
 ```

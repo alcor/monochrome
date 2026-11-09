@@ -68,8 +68,8 @@ The project's one run script copies the extension's files (`store/files`) into t
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | Esc, in a mini browser | Close it | extension |
-| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile | app |
-| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu | app |
+| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile. On by default; turn off in Settings → General if Rectangle or another window manager uses them | app |
+| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu. Same setting | app |
 | ⌘S | Collapse or show the vertical tab bar | macOS App Shortcut, set by the app |
 | ⇧⌘S | Save Page As, moved off ⌘S | macOS App Shortcut, set by the app |
 | ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | macOS App Shortcut, set by the app |

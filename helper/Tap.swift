@@ -98,7 +98,8 @@ final class Tap {
     if typed == "n" && option && shift && !command && !control && onNewMiniBrowser() { return nil }
     guard Chrome.isFrontmost else { return pass }
     // ⌃⌥ with an arrow or a digit: profiles.
-    if control && option && !command && !shift {
+    // Off in Settings for window managers (Rectangle) that use ⌃⌥ arrows and digits themselves.
+    if control && option && !command && !shift && UserDefaults.standard.object(forKey: "profileHotkeys") as? Bool ?? true {
       if key == Tap.right { onProfile(1, nil); return nil }
       if key == Tap.left { onProfile(-1, nil); return nil }
       if let digit = Int(typed), (1...9).contains(digit) { onProfile(0, digit - 1); return nil }

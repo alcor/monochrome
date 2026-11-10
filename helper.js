@@ -5,12 +5,23 @@
 // the switcher picked, a link from another app to open as a mini browser, the bar's actions, a scroll
 // seen by the tap, an ⌥⌘-click seen by the tap, and mini player button presses. Without the helper (not installed, or not running yet)
 // nothing here matters: ⌃Tab still arrives as the recent-* commands and links still arrive as tabs.
+//
+// In Safari the same port goes to the app's Safari extension (safari/SafariWebExtensionHandler.swift),
+// which passes each message on to the app with the Safari profile it came from; the app answers with
+// SFSafariApplication.dispatchMessage, which arrives here as { name, userInfo } and may reach every
+// profile's copy of the extension, so a message for one profile names it (safariProfile). The app
+// does not ping Safari's port on its own schedule, so the extension says it is alive once a minute.
 const HELPER = 'monochrome_helper';
 const MRU_SENT = 12;
 const THUMB_WIDTH = 480, THUMB_MIN_MS = 1000, THUMB_SETTLE_MS = 400;
 
 let helper = null, helperRetryMs = 1000;
 const helperSend = msg => helper?.postMessage(msg);
+// Chrome's port is the app's host, so an open one means the app is there; Safari's goes to the
+// extension inside the app whether or not the app is running, so there the app must have spoken lately.
+let helperHeardAt = 0;
+const helperUp = () => !!helper && (!SAFARI || Date.now() - helperHeardAt < 90_000);
+let safariProfile = null; // this copy's Safari profile, as the app knows it
 
 function helperConnect() {
   if (helper) return;
@@ -28,7 +39,11 @@ function helperConnect() {
 helperConnect();
 // A timer dies with the worker; the alarm doesn't.
 chrome.alarms.create('helper-connect', { periodInMinutes: 1 });
-chrome.alarms.onAlarm.addListener(a => { if (a.name === 'helper-connect') helperConnect(); });
+chrome.alarms.onAlarm.addListener(a => {
+  if (a.name !== 'helper-connect') return;
+  helperConnect();
+  if (SAFARI) helperSend({ alive: true });
+});
 
 // Tab ids start over when Chrome restarts, so the helper drops its thumbnails when the session changes.
 async function helperHello() {
@@ -38,14 +53,25 @@ async function helperHello() {
     await chrome.storage.session.set({ session });
   }
   faviconSent.clear();
+  if (SAFARI && !safariProfile) {
+    const me = await chrome.runtime.sendNativeMessage(HELPER, { whoami: true }).catch(() => null);
+    safariProfile = me?.profile ?? null;
+  }
   helperSend({ hello: { session } });
-  helperSend({ shortcuts: Object.fromEntries((await chrome.commands.getAll()).map(c => [c.name, c.shortcut])) });
+  const commands = await chrome.commands.getAll().catch(() => []);
+  helperSend({ shortcuts: Object.fromEntries(commands.map(c => [c.name, c.shortcut])) });
   playerResend();
   helperMruSoon();
   helperMinisSoon();
 }
 
 function helperMessage(msg) {
+  if (SAFARI) {
+    if (typeof msg?.name === 'string' && msg.userInfo) msg = msg.userInfo; // dispatchMessage's wrapping
+    if (!msg) return;
+    helperHeardAt = Date.now();
+    if (msg.safariProfile && safariProfile && msg.safariProfile !== safariProfile) return; // another profile's
+  }
   if (msg.activate) helperActivate(msg.activate);
   else if (msg.open) routeOpen(msg.open, msg.to).catch(console.error);
   else if (msg.player) playerAction(msg.player);
@@ -71,7 +97,7 @@ async function miniFromHelper({ window, action, to, text }) {
 // window, and where they can be moved to, for the helper's bar and shade.
 // Window events fire per frame of any drag; with no mini browser open there is nothing to send, except
 // once, so the helper hears that the last one closed.
-let minisTimer = null, minisSent = false;
+let minisTimer = null, minisSent = false, minisJson = '';
 function helperMinisSoon() {
   if (!helper || minisTimer || (!miniOpen.size && !minisSent)) return;
   minisTimer = setTimeout(() => { minisTimer = null; helperMinis().catch(console.error); }, 50);
@@ -89,15 +115,23 @@ async function helperMinis() {
     const over = peek[w.id] && await chrome.tabs.get(peek[w.id].tabId).then(t => chrome.windows.get(t.windowId)).catch(() => null);
     minis.push({ id: w.id, ...bounds(w), url: tab?.url || '', title: tab?.title || '', over: over ? bounds(over) : null });
   }
-  helperSend({ minis, targets: await miniTargets() });
+  const message = { minis, targets: await miniTargets() };
+  // The poll that stands in for onBoundsChanged runs every second; send only what changed.
+  const json = JSON.stringify(message);
+  if (!chrome.windows.onBoundsChanged && json === minisJson) return;
+  minisJson = json;
+  helperSend(message);
 }
 chrome.windows.onCreated.addListener(helperMinisSoon);
 chrome.windows.onRemoved.addListener(helperMinisSoon);
-chrome.windows.onBoundsChanged.addListener(helperMinisSoon);
 chrome.windows.onFocusChanged.addListener(helperMinisSoon);
-chrome.tabGroups.onCreated.addListener(helperMinisSoon);
-chrome.tabGroups.onUpdated.addListener(helperMinisSoon);
-chrome.tabGroups.onRemoved.addListener(helperMinisSoon);
+if (chrome.windows.onBoundsChanged) chrome.windows.onBoundsChanged.addListener(helperMinisSoon);
+else setInterval(() => { if (miniOpen.size) helperMinisSoon(); }, 1000); // Safari: no event for a moved or resized window
+if (HAS_GROUPS) {
+  chrome.tabGroups.onCreated.addListener(helperMinisSoon);
+  chrome.tabGroups.onUpdated.addListener(helperMinisSoon);
+  chrome.tabGroups.onRemoved.addListener(helperMinisSoon);
+}
 
 function helperActivate(tabId) {
   return run(async () => {
@@ -141,11 +175,23 @@ async function helperMru() {
                front: front && { left: front.left, top: front.top, width: front.width, height: front.height, title: frontTab?.title || '' } });
 }
 
+// Chrome's own favicon cache (/_favicon/, the favicon permission); Safari has neither it nor
+// Tab.favIconUrl, so there the icon comes from Google's favicon service by the page's origin.
+const FAVICON_API = (chrome.runtime.getManifest().permissions || []).includes('favicon');
+function faviconUrl(pageUrl, api = FAVICON_API) {
+  if (api) return chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32`);
+  let origin;
+  try { origin = new URL(pageUrl).origin; } catch { return null; }
+  if (!/^https?:/.test(origin)) return null;
+  return `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(origin)}&sz=32`;
+}
+
 const favicons = new Map();
 async function favicon(pageUrl) {
   if (!pageUrl) return null;
   if (favicons.has(pageUrl)) return favicons.get(pageUrl);
-  const url = chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32`);
+  const url = faviconUrl(pageUrl);
+  if (!url) return null;
   const data = await fetch(url).then(r => r.blob()).then(dataUrl).catch(() => null);
   if (favicons.size > 500) favicons.clear();
   favicons.set(pageUrl, data);

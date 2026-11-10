@@ -410,6 +410,27 @@ const idFromKey = key => [...crypto.createHash('sha256').update(Buffer.from(key,
 assert.equal(await sw.evaluate(() => chrome.runtime.id), idFromKey(JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).key));
 console.log('extension id from the manifest key: ok');
 
+// Safari: the generated manifest drops what is Chrome's alone, and the stand-ins for Chrome's search and
+// favicon APIs build the URLs Safari uses (Google search, Google's favicon service).
+{
+  const out = path.join(profile, 'safari-manifest.json');
+  const gen = spawn('python3', [path.join(ext, 'store/safari-manifest.py'), path.join(ext, 'manifest.json'), out], { stdio: 'inherit' });
+  assert.equal(await new Promise(r => gen.on('exit', r)), 0);
+  const m = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.equal(m.key, undefined);
+  assert.equal(m.minimum_chrome_version, undefined);
+  for (const p of ['tabGroups', 'search', 'favicon']) assert.ok(!m.permissions.includes(p), p);
+  assert.ok(m.permissions.includes('nativeMessaging'));
+  assert.equal(m.version, JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).version);
+  const urls = await sw.evaluate(() => [searchUrl('a b&c'), faviconUrl('https://news.example.com/x?y', false), faviconUrl('about:blank', false),
+    faviconUrl('https://example.com/'), SAFARI, HAS_GROUPS]);
+  assert.deepEqual(urls.slice(0, 3), ['https://www.google.com/search?q=a%20b%26c',
+    'https://www.google.com/s2/favicons?domain_url=https%3A%2F%2Fnews.example.com&sz=32', null]);
+  assert.match(urls[3], /\/_favicon\/\?pageUrl=/); // Chrome keeps its own favicon cache
+  assert.deepEqual(urls.slice(4), [false, true]);
+  console.log('safari: manifest, search and favicon stand-ins: ok');
+}
+
 // A music site's track reaches the player, and the player's buttons reach the site's handlers.
 await ctx.route('https://open.spotify.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>
   navigator.mediaSession.metadata = new MediaMetadata({ title: 'Song', artist: 'Band', artwork: [{ src: '/small.png' }, { src: '/big.png' }] });

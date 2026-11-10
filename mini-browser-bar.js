@@ -1,4 +1,4 @@
-// The bar in the top-right of a mini browser page: an address button (🔗, or ⌘L), "Open in Chrome" and
+// The bar in the top-right of a mini browser page: an address button (🔗, or ⌘L), "Open in Chrome" (or Safari) and
 // ▾ to pick a window or tab group, labelled with whatever shortcuts are set for them. Chrome's popup
 // windows have no address bar, so ⌘L opens an address field with the URL selected, ready to copy;
 // Enter goes to a URL or search, Esc closes it. Injected by mini-browser.js on each page load inside a
@@ -94,6 +94,9 @@
     }
   }, true);
 
+  chrome.runtime.sendMessage({ mini: 'browser' }).then(name => {
+    if (name) root.querySelector('.open').firstChild.textContent = `Open in ${name}`;
+  });
   chrome.runtime.sendMessage({ mini: 'shortcuts' }).then(keys => {
     const kbd = root.querySelector('kbd');
     if (keys['mini-open']) kbd.textContent = keys['mini-open'];

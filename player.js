@@ -59,7 +59,7 @@ const playerUpdate = () => (playerQueue = playerQueue.then(playerSync).catch(con
 setInterval(playerUpdate, 1000);
 chrome.tabs.onActivated.addListener(playerUpdate);
 chrome.windows.onFocusChanged.addListener(playerUpdate);
-chrome.windows.onBoundsChanged.addListener(playerUpdate);
+chrome.windows.onBoundsChanged?.addListener(playerUpdate); // not in Safari; the poll above covers it
 
 async function playerAction({ action }) {
   if (!playerTab) return;

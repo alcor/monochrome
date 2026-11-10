@@ -60,13 +60,14 @@ Safari differences:
 - Switcher favicons come from Google's favicon service (`www.google.com/s2/favicons`) by the page's origin. Chrome uses its own favicon cache.
 - Mini browsers are popup windows, as on Chrome. Whether Safari draws them without its toolbar has not been checked.
 - Safari reports no window moves or resizes to extensions, so the extension reads the mini browser windows once a second while one is open.
-- The profile hotkeys (⌃⌥→, ⌃⌥←, ⌃⌥1 to 9) and `profile` route destinations need Chrome's Profiles menu and do nothing on Safari. Each Safari profile's copy of the extension still connects on its own.
-- There is no mini player: Safari 27.2 has no vertical tab sidebar.
-- No launch flags, no Dock tile, no App Shortcuts and no Arc import. The app does not start Safari at login.
+- Profiles come from Safari's File → New Window submenu, which has a "New <name> Window" item per profile. The profile hotkeys (⌃⌥→, ⌃⌥←, ⌃⌥1 to 9) bring forward a window of a profile whose extension is connected, and otherwise press that item, which opens a new window in the profile. Safari tells extensions a profile id, not a name, so the app learns each name the first time it opens that profile's window this way, and keeps it. A `profile` route destination goes over the profile's connection once its name is known, and otherwise opens its window first.
+- The mini player needs Safari's vertical tabs, which arrive in Safari 27.3. On 27.3 or later the app looks for the tab list over Accessibility and puts the player at its bottom; with Safari 27.2, or no tab list found, there is no mini player.
+- App Shortcuts are written to Safari's preferences when the Browser setting is Safari: ⌘S shows and hides the sidebar, ⇧⌘S is Save As…, ⌥⌘↓ and ⌥⌘↑ are the next and previous tab. Quit and reopen Safari once for them to apply. macOS may refuse the write, since Safari's preferences are in its container; the app logs it.
+- No launch flags, no Dock tile and no Arc import. The app does not start Safari at login.
 - There is no shortcuts page for the extension's fallback commands, and no Global scope, so ⌥⇧N from another app needs the app.
 - The extension talks to the app through its app extension: the extension's messages go to the app over a socket in the app group container (`~/Library/Group Containers/TVA9Z8LD95.com.artifact.monochrome`), and the app answers through Safari. Details are in `docs/safari.md`.
 
-None of the Safari behavior has been tried in Safari yet; `docs/safari.md` lists what is unmeasured.
+None of the Safari behavior has been tried in Safari yet; `docs/safari.md` lists what is unmeasured, including the Accessibility shape of Safari's profile menu and of 27.3's tab sidebar.
 
 ## Build from source
 
@@ -95,8 +96,8 @@ The Safari extension target's run script copies the same files into the app exte
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | Esc, in a mini browser | Close it | extension |
-| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile | app |
-| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu | app |
+| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile (Safari profile on Safari) | app |
+| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu (Safari's File → New Window submenu on Safari) | app |
 | ⌘S | Collapse or show the vertical tab bar | macOS App Shortcut, set by the app |
 | ⇧⌘S | Save Page As, moved off ⌘S | macOS App Shortcut, set by the app |
 | ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | macOS App Shortcut, set by the app |
@@ -162,7 +163,7 @@ The catch is two scripts the extension injects into locked tabs only (`peek-clic
 
 ## Profiles switch through Chrome's own menu
 
-⌃⌥→ and ⌃⌥← go to the next and previous profile, ⌃⌥1 to 9 to one by position. The app reads Chrome's Profiles menu over Accessibility and presses the item (`helper/Profiles.swift`), so this works in a profile without the extension; every other feature needs the extension loaded there. A HUD shows the profiles as initials on a color derived from the name, the chosen one marked, for 1.2 seconds. The menu carries no avatar images, which is why initials.
+⌃⌥→ and ⌃⌥← go to the next and previous profile, ⌃⌥1 to 9 to one by position. The app reads Chrome's Profiles menu over Accessibility and presses the item (`helper/Profiles.swift`), so this works in a profile without the extension; every other feature needs the extension loaded there. A HUD shows the profiles as initials on a color derived from the name, the chosen one marked, for 1.2 seconds. The menu carries no avatar images, which is why initials. Safari's profiles come from its File menu instead; see [Safari](#safari).
 
 ## The mini player sits on the tab sidebar
 
@@ -179,7 +180,7 @@ Typing words and pressing Enter opens the history entry that matches them rather
 - **The app** (no arguments): installs itself at launch, owns the event tap and every panel, the Dock tile and the default-browser role, and listens on a Unix socket in `~/Library/Application Support/Monochrome`. A click on its Dock tile opens Chrome; a double-click in the Finder, or the ▾ menu of any mini browser's bar, opens the settings window.
 - **The host** (`--host`): what Chrome spawns for the extension's native messaging port. It relays between the port and the app's socket, and pings the extension every 20 seconds so Chrome does not stop the service worker for idleness. Each Chrome profile gets its own host process and connection; the app routes tab actions to the connection that owns the tab and front-window actions to the connection whose front window matches Chrome's.
 - **The Safari extension** (`Contents/PlugIns/Monochrome Extension.appex`): what the extension's native port reaches in Safari. It relays each message to the app over a socket in the app group container, with the Safari profile it came from; the app answers through `SFSafariApplication.dispatchMessage`.
-- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
+- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
 
 The settings window has two tabs: General, in two columns (the browser, Chrome or Safari; login item, default browser, Accessibility, the version with Check for Updates…; Chrome's launch flags, which profiles' extensions are connected, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
@@ -195,7 +196,7 @@ Logs go to the unified log under subsystem `com.artifact.monochrome`:
 ~/Code/monochrome/uninstall.sh
 ```
 
-It removes the app, its login item, Dock tile, support folder and host registration, this project's App Shortcuts, and what earlier versions installed. Karabiner itself and other App Shortcuts stay. Then remove the extension in `chrome://extensions`, restart Chrome, and choose Chrome as the default browser in System Settings → Desktop & Dock.
+It removes the app, its login item, Dock tile, settings, support folder and host registration, the Safari relay's app group folder, this project's Chrome and Safari App Shortcuts, and what earlier versions installed. Karabiner itself and other App Shortcuts stay. The Safari extension goes with the app. Then remove the extension in `chrome://extensions`, restart Chrome (and Safari, for its App Shortcuts), and choose a default browser in System Settings → Desktop & Dock.
 
 ## Releases and the Web Store
 
@@ -210,7 +211,7 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 npm install && npx playwright-core install chromium && make build && npm test
 ```
 
-The suite drives headless Chromium with the extension loaded. With the app built, it also spawns it in host mode against a private socket, and has the app write its host registration into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
+The suite drives headless Chromium with the extension loaded. With the app built, it also spawns it in host mode against a private socket, has the app write its host registration into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app, and runs the app's Safari readers on sample input (`--check-safari`), writing the Safari App Shortcuts to a scratch preferences domain that it deletes afterwards. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
 
 ## Not verified
 

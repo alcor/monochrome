@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test.mjs"
+    "test": "node test.mjs && node test-tldr.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.58.0"

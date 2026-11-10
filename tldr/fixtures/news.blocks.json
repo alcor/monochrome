@@ -1,0 +1,87 @@
+{
+ "url": "https://fixture.test/news",
+ "title": "Harbor ferry returns after 14 years",
+ "lang": "en",
+ "blocks": [
+  {
+   "id": 1,
+   "kind": "figure",
+   "text": "The Marigold leaves the north pier on its first scheduled crossing. Photo: Tidewater Ledger"
+  },
+  {
+   "id": 3,
+   "kind": "paragraph",
+   "text": "The cross-harbor ferry carried paying passengers on Monday for the first time since 2012, ending a 14-year gap that began when the old operator went out of business. The 38-meter vessel Marigold made its first crossing at 6:40 a.m. with 212 people on board, according to the harbor authority."
+  },
+  {
+   "id": 4,
+   "kind": "paragraph",
+   "text": "The service links the north pier to Saltmarsh Landing in 22 minutes. The same trip by road takes about 55 minutes at rush hour, because the only bridge is 9 kilometers upstream."
+  },
+  {
+   "id": 6,
+   "kind": "heading",
+   "text": "What it cost"
+  },
+  {
+   "id": 7,
+   "kind": "paragraph",
+   "text": "The city council approved $18.6 million for the project in March 2024. Of that, $11.2 million paid for the vessel, which was built in a yard 300 kilometers down the coast, and the rest went to rebuilding both landings."
+  },
+  {
+   "id": 8,
+   "kind": "paragraph",
+   "text": "A one-way ticket costs $4.50, and a monthly pass costs $96. Children under 12 ride free, and bicycles are carried at no charge."
+  },
+  {
+   "id": 9,
+   "kind": "quote",
+   "text": "We heard from people who had stopped applying for jobs across the water because the drive made no sense. That was the argument that carried the vote."
+  },
+  {
+   "id": 10,
+   "kind": "paragraph",
+   "text": "The quote is from council member Daniel Reyes, who chaired the transport committee during the two years of hearings."
+  },
+  {
+   "id": 11,
+   "kind": "embed",
+   "text": "The Marigold's first crossing"
+  },
+  {
+   "id": 13,
+   "kind": "heading",
+   "text": "Who will ride it"
+  },
+  {
+   "id": 14,
+   "kind": "paragraph",
+   "text": "The harbor authority expects 1,900 passengers on a weekday in the first year and has set a target of 2,600 by 2029. A survey of 840 households in Saltmarsh found that 31% would use the ferry at least once a week."
+  },
+  {
+   "id": 15,
+   "kind": "paragraph",
+   "text": "Twelve crossings run in each direction on weekdays and eight on weekends. The last boat leaves the north pier at 9:15 p.m."
+  },
+  {
+   "id": 16,
+   "kind": "image",
+   "text": "Passengers waiting at Saltmarsh Landing"
+  },
+  {
+   "id": 18,
+   "kind": "heading",
+   "text": "What happens next"
+  },
+  {
+   "id": 19,
+   "kind": "paragraph",
+   "text": "A second vessel is due in the spring of 2027, which would cut the wait between boats from 40 minutes to 20. The council will review the fares after six months of ticket data."
+  }
+ ],
+ "want": {
+  "bullets": 5,
+  "facts": 6
+ },
+ "truncated": false
+}

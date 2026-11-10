@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Retry policies | Quill queue documentation</title>
+<meta property="og:site_name" content="Quill">
+<style>
+  body { margin: 0; font: 15px/1.6 -apple-system, Helvetica, Arial, sans-serif; color: #1c2430; background: #fff; }
+  .navbar { background: #0f1b2d; color: #fff; padding: 10px 20px; }
+  .navbar a { color: #b9c7dc; margin-left: 18px; }
+  .shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+  .docs-sidebar { border-right: 1px solid #e3e7ee; padding: 20px; }
+  .docs-sidebar a { display: block; padding: 3px 0; color: #3b4a61; }
+  .content { padding: 28px 40px; max-width: 820px; }
+  pre { background: #f4f6fa; padding: 14px; overflow: auto; border-radius: 6px; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 0.92em; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #d9dee8; padding: 6px 12px; text-align: left; }
+  .edit-link { float: right; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="navbar"><strong>Quill</strong><a href="/docs">Docs</a><a href="/api">API</a><a href="/blog">Blog</a><a href="/changelog">Changelog</a></div>
+<div class="shell">
+  <nav class="docs-sidebar" aria-label="Documentation">
+    <a href="/docs/start">Getting started</a><a href="/docs/queues">Queues</a><a href="/docs/workers">Workers</a>
+    <a href="/docs/retries">Retry policies</a><a href="/docs/dead-letter">Dead-letter queues</a><a href="/docs/metrics">Metrics</a>
+    <a href="/docs/deploy">Deploying</a><a href="/docs/upgrade">Upgrading</a>
+  </nav>
+  <main class="content">
+    <ol class="breadcrumb"><li><a href="/docs">Docs</a></li><li><a href="/docs/workers">Workers</a></li><li>Retry policies</li></ol>
+    <h1>Retry policies</h1>
+    <p>A retry policy decides what Quill does with a job whose handler throws. By default a job is tried 5 times, with a delay that doubles after each failure, and is moved to the dead-letter queue after the last attempt. A policy is set per queue and can be overridden per job.</p>
+    <p>Retries are counted per job, not per worker. A job that fails on one worker and is picked up by another keeps its count, because the count is stored with the job in <code>quill_jobs.attempts</code>.</p>
+    <h2 id="configure">Configuring a policy</h2>
+    <p>Pass <code>retry</code> when you declare the queue. Every field is optional; the values below are the defaults.</p>
+    <pre><code class="language-js">const queue = quill.queue('email', {
+  retry: {
+    attempts: 5,
+    backoff: 'exponential',
+    baseDelayMs: 1000,
+    maxDelayMs: 60000,
+    jitter: 0.2,
+  },
+});</code></pre>
+    <p>With these values the delays are 1, 2, 4 and 8 seconds, each moved by up to 20% in either direction so that jobs which failed together do not retry together.</p>
+    <h2 id="backoff">Backoff strategies</h2>
+    <table>
+      <caption>Delay before attempt n, with a base delay of 1 second</caption>
+      <thead><tr><th>Strategy</th><th>Attempt 2</th><th>Attempt 3</th><th>Attempt 4</th></tr></thead>
+      <tbody>
+        <tr><td><code>fixed</code></td><td>1 s</td><td>1 s</td><td>1 s</td></tr>
+        <tr><td><code>linear</code></td><td>1 s</td><td>2 s</td><td>3 s</td></tr>
+        <tr><td><code>exponential</code></td><td>1 s</td><td>2 s</td><td>4 s</td></tr>
+      </tbody>
+    </table>
+    <p>No delay is longer than <code>maxDelayMs</code>, which defaults to 60 seconds. An exponential policy with 12 attempts therefore waits 60 seconds from the eighth attempt on.</p>
+    <h2 id="errors">Errors that should not be retried</h2>
+    <p>Throw <code>quill.Fatal</code> to send a job straight to the dead-letter queue. Use it for failures that another attempt cannot fix, such as a payload that does not parse.</p>
+    <pre><code class="language-js">queue.process(async job => {
+  const user = await users.find(job.data.userId);
+  if (!user) throw new quill.Fatal('no such user');
+  await mailer.send(user.email, job.data.template);
+});</code></pre>
+    <ul>
+      <li>A <code>Fatal</code> error counts as one attempt in the metrics.</li>
+      <li>A handler that times out is retried like any other failure. The default timeout is 30 seconds.</li>
+      <li>A worker that is killed mid-job does not use up an attempt. The job becomes visible again after its lease of 45 seconds runs out.</li>
+    </ul>
+    <h2 id="observe">Observing retries</h2>
+    <p>Each retry emits a <code>job.retry</code> event with the attempt number and the delay. The <a href="#backoff">backoff table</a> above gives the delay you should expect to see. In version 3.2 and later the event also carries the error's class name.</p>
+    <a class="edit-link" href="https://example.com/edit/retries.md">Edit this page</a>
+    <div class="pagination"><a href="/docs/workers">← Workers</a> <a href="/docs/dead-letter">Dead-letter queues →</a></div>
+  </main>
+</div>
+<footer class="site-footer"><a href="/status">Status</a> · <a href="/security">Security</a> · <a href="/license">License</a> · <a href="/community">Community</a></footer>
+</body>
+</html>

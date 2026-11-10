@@ -21,6 +21,11 @@
 //                   ⌘L/⌘T box's model for that browser's profile, typed into without showing it (--show: the panel shown, typed into through
 //                   its field; it takes the keyboard); the running app logs the rows (Omnibox.swift)
 //   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)
+//   --prefs [--defaults]  the `prefs` message the app sends the extension, as JSON: the current values, or
+//                   the defaults (Prefs.swift), which the tests compare with the extension's PREF_DEFAULTS
+//   --demo-settings [tab] [out.png] [dark]  the settings window on a tab (general, browser, tabs, mini,
+//                   command, player, router, or 0 to 6; Router when none) over a scratch defaults suite,
+//                   with sample rules and profiles; with out.png, drawn into that file from the view and quit
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
 import AppKit
@@ -44,12 +49,18 @@ case "--demo-profiles":
   profiles.demo(sample: backdrop != nil)
   app.run()
 case "--demo-settings":
-  // The settings window on the Router tab with sample rules, active, over the backdrop.
+  // The settings window on a tab with sample rules and profiles, on scratch defaults; active over the
+  // backdrop, or drawn into a PNG.
   let app = NSApplication.shared
-  let backdrop = showBackdropIfAsked()
+  Prefs.useDemoStore()
+  let rest = CommandLine.arguments.dropFirst(2).filter { !$0.hasPrefix("--") }
+  let tab = rest.first { !$0.hasSuffix(".png") && $0 != "dark" }.flatMap(SettingsWindow.tabIndex) ?? SettingsWindow.tabIndex("router")!
+  let out = rest.first { $0.hasSuffix(".png") }
+  if out != nil { app.setActivationPolicy(.accessory) }
+  let backdrop = out == nil ? showBackdropIfAsked() : nil
   backdrop?.level = .normal
   DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-    SettingsWindow.shared.demo(tab: CommandLine.arguments.contains("--general") ? 0 : 1)
+    SettingsWindow.shared.demo(tab: tab, out: out, dark: rest.contains("dark"))
     if CommandLine.arguments.contains("--extension") { InstallExtensionPanel.shared.show() }
   }
   app.run()
@@ -64,6 +75,9 @@ case "--status":
   print("browser:", Browser.current.name)
   print("app:", NSRunningApplication.runningApplications(withBundleIdentifier: App.bundleId).isEmpty ? "not running" : "running")
   print("host:", Socket.connect(Socket.path).map { close($0); return "socket up" } ?? "socket down")
+  exit(0)
+case "--prefs":
+  Prefs.printPayload(defaults: CommandLine.arguments.contains("--defaults"))
   exit(0)
 case "--check-safari":
   exit(SafariCheck.run(CommandLine.arguments.dropFirst(2).first))

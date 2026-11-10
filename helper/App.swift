@@ -1,5 +1,5 @@
-// The app half: launched at login (it registers itself as a login item, and does the rest of the
-// install at each launch: Install.swift) and from the Dock, where it
+// The app half: launched at login (it registers itself as a login item once per location, and does
+// the rest of the install at each launch: Install.swift) and from the Dock, where it
 // takes Chrome's place so that opening Chrome goes through it and gets the launch flags. Also the
 // default browser: links from other apps arrive here and go to the extension over the bridge, which
 // opens them as mini browsers without a tab ever passing through the main window. If the extension isn't
@@ -16,9 +16,11 @@
 // Safari quits. Only the connections of the browser chosen in settings take part. A Safari connection
 // is known by Safari's profile id; its name is learned when the app opens that profile's window from
 // Safari's File menu (learnSafariProfile) and kept across launches (SafariProfiles.learned).
+//
+// The settings (Prefs.swift) the extension must obey go to each connection as one `prefs` message when
+// it says hello, and to every connection when one of them changes.
 import AppKit
 import Sparkle
-import ServiceManagement
 
 final class Connection {
   let peer: Peer
@@ -66,27 +68,27 @@ final class App: NSObject, NSApplicationDelegate {
   var playerOwner: Connection?
   var sessions = Set<String>()
   var scrollTimer: Timer?
+  var prefsSent = "" // the last `prefs` payload sent to every connection, as JSON
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     signal(SIGPIPE, SIG_IGN)
     NSApp.setActivationPolicy(.accessory)
-    if !Install.portable { try? SMAppService.mainApp.register() }
     Install.atLaunch()
     NSApp.mainMenu = mainMenu()
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
     SettingsWindow.shared.connectedProfiles = { [weak self] in self?.allConnections.compactMap(ConnectedProfile.init) ?? [] }
-    SettingsWindow.shared.connectionsSummary = { [weak self] in
-      guard let self, !allConnections.isEmpty else { return "Not connected" }
-      let names = allConnections.compactMap { c in c.safari.map { "\(c.profile ?? $0.label) in Safari" } ?? c.profile.map { c.browser == nil || c.browser == Chrome.chromeVariants[0].name ? $0 : "\($0) in \(c.browser!)" } }
-      let count = "\(allConnections.count) profile\(allConnections.count == 1 ? "" : "s")"
-      return "Connected in " + (names.count == allConnections.count ? names.joined(separator: ", ") : count)
-    }
+    SettingsWindow.shared.automaticUpdates = (get: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates ?? true },
+                                              set: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates = $0 })
+    prefsSent = Prefs.json(Prefs.payload)
+    NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: Prefs.store, queue: .main) { [weak self] _ in self?.prefsChanged() }
 
     Chrome.onBrowserChange = { [weak self] in self?.merge() }
     tap.switcher = switcher
     tap.useSwitcher = { [weak self] in
       guard let self else { return false }
+      // Settings → Tabs → Switcher panel off: the keys go to the extension's commands, which switch live.
+      guard Prefs.switcherPanel else { return false }
       switcher.frontWindow = frontConnection?.front?.id ?? -1
       return !connections.isEmpty && switcher.inFront.count > 1
     }
@@ -177,16 +179,19 @@ final class App: NSObject, NSApplicationDelegate {
       let installed = self?.tap.install() ?? false
       log.info("tap: \(installed ? "installed" : "could not be created", privacy: .public)")
     }
-    // Chrome is started at login to get its launch flags; Safari takes none and starts when wanted.
-    if Browser.current == .chrome {
+    // Chrome is started at login to get its launch flags (unless Settings → Browser says not to);
+    // Safari takes none and starts when wanted.
+    if Browser.current == .chrome && Prefs.openBrowserAtLaunch {
       if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
     }
   }
 
   // ⌘L and ⌘T in the browser in front (Omnibox.swift): for the profile whose window is in front, when
-  // its extension is connected and the setting is on; otherwise the keys go to the browser.
+  // its extension is connected and the key's setting (Settings → Command Bar) is on; otherwise the keys
+  // go to the browser.
   func openOmnibox(newTab: Bool, connection given: Connection? = nil, display: Bool = true) -> Bool {
-    guard UserDefaults.standard.object(forKey: "omnibox") as? Bool ?? true, let connection = given ?? frontConnection else {
+    guard given != nil || (newTab ? Prefs.omniboxT : Prefs.omniboxL) else { return false }
+    guard let connection = given ?? frontConnection else {
       log.info("omnibox: \(newTab ? "⌘T" : "⌘L", privacy: .public) left to the browser: no connection for the front window")
       return false
     }
@@ -215,7 +220,12 @@ final class App: NSObject, NSApplicationDelegate {
       send(["omnibox": go.merging(["op": "go"]) { a, _ in a }], to: omniboxConnection)
       omnibox.hide()
     }
-    model.onSuggest = { [weak model] text in Omnibox.suggest(text) { model?.receive(suggestions: $0, for: text) } }
+    // Google's suggestions, unless Settings → Command Bar → Google suggestions is off: then nothing typed
+    // leaves the Mac.
+    model.onSuggest = { [weak model] text in
+      guard Prefs.omniboxSuggestions else { return }
+      Omnibox.suggest(text) { model?.receive(suggestions: $0, for: text) }
+    }
     model.onNeedIcons = { [weak self, weak model] pages in
       guard let self, let connection = omniboxConnection else { return }
       if connection.safari != nil {
@@ -378,7 +388,8 @@ final class App: NSObject, NSApplicationDelegate {
   func route(_ url: URL, from sender: String?) {
     let rule = Routes.route(url, from: sender)
     log.notice("route: \(url.host ?? "", privacy: .public) from \(sender ?? "?", privacy: .public): \(rule?.description ?? "no rule", privacy: .public)")
-    let to = rule?.to ?? [:]
+    // No rule: Settings → Mini Browsers → Links from other apps open as.
+    let to = rule?.to ?? Prefs.routeDefault.to
     if let app = to["app"] as? String {
       guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app) else {
         log.error("route: no app \(app, privacy: .public); opening in Chrome instead")
@@ -531,6 +542,15 @@ final class App: NSObject, NSApplicationDelegate {
       if !sessions.isEmpty { switcher.thumbs = [:] }
       sessions.insert(session)
     }
+    if let hello = message["hello"] as? [String: Any] {
+      // The locked group's title, from a copy that kept one on its options page before the app held it:
+      // taken once, while this app's own has never been set.
+      if let legacy = hello["lockedGroup"] as? String, !Prefs.isSet(.lockedGroup) {
+        Prefs.set(.lockedGroup, legacy)
+        log.notice("prefs: locked group title \(legacy, privacy: .public) adopted from an extension")
+      }
+      send(["prefs": Prefs.payload], to: connection)
+    }
     if let mru = message["mru"] as? [[String: Any]] {
       log.info("mru: \(mru.count) tabs")
       let had = Dictionary(connection.tabs.map { ($0.id, $0.favicon) }, uniquingKeysWith: { a, _ in a })
@@ -548,7 +568,7 @@ final class App: NSObject, NSApplicationDelegate {
       let listed = Set(connections.flatMap(\.tabs).map(\.id))
       switcher.thumbs = switcher.thumbs.filter { listed.contains($0.key) } // a tab that drops off every list is captured again when next in front
     }
-    if let thumb = message["thumb"] as? [String: Any], let id = thumb["id"] as? Int, let image = image(thumb["data"] as? String) {
+    if Prefs.thumbnails, let thumb = message["thumb"] as? [String: Any], let id = thumb["id"] as? Int, let image = image(thumb["data"] as? String) {
       log.info("thumb: tab \(id)")
       switcher.thumbs[id] = image
     }
@@ -620,6 +640,16 @@ final class App: NSObject, NSApplicationDelegate {
   }
 
   @objc func showSettings() { SettingsWindow.shared.show() }
+
+  // A setting changed: when it is one the extension obeys, the whole set goes to every connection.
+  func prefsChanged() {
+    let now = Prefs.json(Prefs.payload)
+    guard now != prefsSent else { return }
+    prefsSent = now
+    if !Prefs.thumbnails { switcher.thumbs = [:] }
+    log.info("prefs: sent to \(self.allConnections.count) connections")
+    for connection in allConnections { send(["prefs": Prefs.payload], to: connection) }
+  }
 
   // The switcher and the bars see every profile's tabs and mini browsers together; each mini browser
   // carries its profile's name for its bar, once learned.

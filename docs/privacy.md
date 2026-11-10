@@ -1,6 +1,6 @@
 # Monochrome privacy policy
 
-Monochrome is a Chrome extension and a companion macOS app. Neither sends anything off your computer.
+Monochrome is a Chrome extension and a companion macOS app. The extension sends nothing off your computer. The app makes the few requests listed under Where it goes, and nothing it sends identifies you.
 
 ## What the extension reads
 
@@ -12,14 +12,21 @@ Monochrome is a Chrome extension and a companion macOS app. Neither sends anythi
 
 ## Where it goes
 
-Over Chrome's native messaging port to the Monochrome app on the same Mac, and nowhere else. The app has no network access of its own beyond fetching a track's artwork from the address the music site gave. There are no servers, no accounts, no analytics, no crash reporting, and no remote code.
+Over Chrome's native messaging port to the Monochrome app on the same Mac, and nowhere else. The app's own requests are these:
+
+- **Google suggestions in the command bar.** What you type into the command bar (⌘L, ⌘T) is sent to Google's suggestion service as you type, as Chrome's own address bar does, so the box can list Google's suggestions. Turn it off in Settings → Command Bar → Google suggestions; then nothing typed leaves the Mac.
+- **Site icons on Safari.** Safari gives extensions no site icons, so with Safari the app asks Google's favicon service for the icon of each site the command bar lists.
+- **Artwork** for the sidebar player, from the address the music site gave.
+- **Update checks.** Once a day, and from Check for Updates…, the app reads `appcast.xml` from GitHub and, when there is a newer version, downloads it. Turn the daily check off in Settings → General.
+
+There are no servers, no accounts, no analytics, no crash reporting, and no remote code.
 
 ## What is stored
 
-In Chrome's extension storage on your computer: locked tabs' addresses, the recent-tab order, and the locked group's title. The app stores its link rules in `~/Library/Application Support/Monochrome/routes.json`. Removing the extension and the app removes all of it; `uninstall.sh` in the repository does both.
+In Chrome's extension storage on your computer: locked tabs' addresses, the recent-tab order, and the settings the app sent it (which switches are on, the locked group's title). The app keeps its settings in its own preferences and its link rules in `~/Library/Application Support/Monochrome/routes.json`. Removing the extension and the app removes all of it; `uninstall.sh` in the repository does both.
 
 ## Changes
 
 The Web Store listing links Artifact's shared policy, https://artifact.com/privacy?Monochrome, which this statement details. This file is kept in the repository and its history is the record of changes.
 
-Last updated November 6, 2026.
+Last updated November 10, 2026.

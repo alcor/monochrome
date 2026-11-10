@@ -72,7 +72,6 @@ final class Switcher {
   static let cardPad: CGFloat = 4, wellRadius = thumbRadius + cardPad
   static let pad = margin - cardPad, radius = wellRadius + pad
   static let below = margin, shadowRoom: CGFloat = 70
-  static let showAfter = 0.15, maxVisible = 5
 
   var tabs: [TabInfo] = []
   var frontWindow = -1 // Chrome's id for the window in front; the walk keeps to its tabs
@@ -110,12 +109,13 @@ final class Switcher {
       let candidates = inFront
       guard candidates.count > 1 else { return }
       walking = true
-      // The five most recent, or fewer on a narrow screen; the walk wraps within them.
+      // The most recent (Settings → Tabs → Tabs shown, five unless changed), or fewer on a narrow
+      // screen; the walk wraps within them.
       let width = screen?.visibleFrame.width ?? 1200
       let fit = Int((width - 2 * Self.pad - 80 + Self.gap) / (Self.thumb.width + 2 * Self.cardPad + Self.gap))
-      model.walk = Array(candidates.prefix(max(2, min(Self.maxVisible, fit))))
+      model.walk = Array(candidates.prefix(max(2, min(Prefs.switcherCount, fit))))
       model.index = 0
-      showTimer = Timer.scheduledTimer(withTimeInterval: Self.showAfter, repeats: false) { [weak self] _ in self?.show() }
+      showTimer = Timer.scheduledTimer(withTimeInterval: Prefs.switcherDelay, repeats: false) { [weak self] _ in self?.show() }
     }
     model.index = (model.index + (back ? -1 : 1) + model.walk.count) % model.walk.count
   }

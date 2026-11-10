@@ -5,6 +5,7 @@
 // the switcher picked, a link from another app to open as a mini browser, the bar's actions, a scroll
 // seen by the tap, an ⌥⌘-click seen by the tap, and mini player button presses. Without the helper (not installed, or not running yet)
 // nothing here matters: ⌃Tab still arrives as the recent-* commands and links still arrive as tabs.
+// The app also sends the settings this extension obeys, as { prefs } (background.js keeps them).
 //
 // In Safari the same port goes to the app's Safari extension (safari/SafariWebExtensionHandler.swift),
 // which passes each message on to the app with the Safari profile it came from; the app answers with
@@ -57,7 +58,9 @@ async function helperHello() {
     const me = await chrome.runtime.sendNativeMessage(HELPER, { whoami: true }).catch(() => null);
     safariProfile = me?.profile ?? null;
   }
-  helperSend({ hello: { session } });
+  // A title the options page kept before the app held the settings: the app adopts it if it has none.
+  const { lockedGroup } = await chrome.storage.local.get('lockedGroup');
+  helperSend({ hello: { session, ...(typeof lockedGroup === 'string' ? { lockedGroup } : {}) } });
   const commands = await chrome.commands.getAll().catch(() => []);
   helperSend({ shortcuts: Object.fromEntries(commands.map(c => [c.name, c.shortcut])) });
   playerResend();
@@ -79,7 +82,8 @@ function helperMessage(raw) {
   const msg = helperUnwrap(raw);
   if (SAFARI && raw) helperHeardAt = Date.now();
   if (!msg) return;
-  if (msg.activate) helperActivate(msg.activate);
+  if (msg.prefs) applyPrefs(msg.prefs).catch(console.error);
+  else if (msg.activate) helperActivate(msg.activate);
   else if (msg.open) routeOpen(msg.open, msg.to).catch(console.error);
   else if (msg.player) playerAction(msg.player);
   else if (msg.mini) miniFromHelper(msg.mini).catch(console.error);
@@ -254,7 +258,7 @@ async function helperThumbFront() {
 // the worker.
 const thumbAt = new Map(), thumbTimers = new Map();
 function helperThumbSoon(tabId, after = 0) {
-  if (!helper) return;
+  if (!helper || !PREFS.thumbnails) return; // Settings → Tabs → Thumbnails
   const wait = Math.max(after, THUMB_MIN_MS - (Date.now() - (thumbAt.get(tabId) || 0)));
   if (thumbTimers.has(tabId)) return;
   thumbTimers.set(tabId, setTimeout(() => {

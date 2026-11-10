@@ -13,6 +13,9 @@
 // ponytail: position matching assumes Chrome restores tabs in the same order across all windows;
 // closing a window that has locked tabs and then quitting can shift URLs by one.
 // "Replace pinned URL with current" or re-locking fixes a wrong one.
+//
+// What this extension does is switched in the app's settings window, not here: the app sends the
+// switches it obeys as `prefs` (below), and every reader checks PREFS when it runs.
 
 // Safari runs the same files (docs/safari.md). It has no tab groups, so there only pinned tabs are
 // locked; each feature checks for its API (chrome.tabGroups, chrome.search) rather than for Safari.
@@ -23,13 +26,54 @@ const BROWSER_NAME = SAFARI ? 'Safari' : 'Chrome';
 const HAS_GROUPS = !!chrome.tabGroups;
 const inGroup = t => HAS_GROUPS && t.groupId !== undefined && t.groupId !== -1;
 
-// The locked group's title, set on the options page; CoreCore until then.
+// Settings. The app owns them (helper/Prefs.swift, docs/settings.md) and sends the ones the extension
+// obeys as one `prefs` message, the whole set, when this copy says hello and whenever one changes
+// (helper.js). They are kept in chrome.storage.local under `prefs`, so they hold when the browser starts
+// before the app does; a copy that has never heard from the app runs on PREF_DEFAULTS, which is how it
+// behaved before the settings existed. Unknown keys are dropped and missing ones keep their default.
+// The options page sets the locked group's title while the app is not connected.
+const PREF_DEFAULTS = {
+  lockedTabs: true, lockedGroup: 'CoreCore', newTabsAtTop: true, peek: true, miniIdleHours: 12,
+  routeDefault: 'mini', thumbnails: true, player: true, playerStopPopout: true,
+};
+let PREFS = { ...PREF_DEFAULTS };
+// The locked group's title, or none: then only pinned tabs lock.
 let LOCKED_GROUPS = ['CoreCore'];
-chrome.storage.local.get('lockedGroup').then(({ lockedGroup }) => { if (lockedGroup) LOCKED_GROUPS = [lockedGroup]; });
+
+function prefsFrom(p = {}) {
+  const next = { ...PREF_DEFAULTS };
+  for (const key in PREF_DEFAULTS) if (p && typeof p[key] === typeof PREF_DEFAULTS[key]) next[key] = p[key];
+  if (!['mini', 'front', 'same-site'].includes(next.routeDefault)) next.routeDefault = PREF_DEFAULTS.routeDefault;
+  return next;
+}
+
+// What a change does beyond the readers that check PREFS as they run.
+function prefsChanged(next) {
+  const before = PREFS;
+  if (JSON.stringify(before) === JSON.stringify(next)) return;
+  PREFS = next;
+  LOCKED_GROUPS = next.lockedGroup ? [next.lockedGroup] : [];
+  // Off: nothing is locked and the saved order empties (sync), so on again locks each tab where it is.
+  if (before.lockedTabs !== next.lockedTabs || before.lockedGroup !== next.lockedGroup) resync();
+  if (before.peek !== next.peek) run(async () => peekEverywhere(next.peek));
+  if (before.player !== next.player && typeof playerResend === 'function') playerResend();
+}
+
+// From the app. The legacy title the options page kept goes once the app has sent a set.
+async function applyPrefs(p) {
+  const next = prefsFrom(p);
+  await chrome.storage.local.set({ prefs: next });
+  await chrome.storage.local.remove('lockedGroup');
+  prefsChanged(next);
+  return next;
+}
+
+// At start: the last set, or (before the app ever sent one) the legacy title on its own.
+const prefsReady = chrome.storage.local.get(['prefs', 'lockedGroup']).then(({ prefs, lockedGroup }) => {
+  prefsChanged(prefsFrom(prefs || (lockedGroup ? { lockedGroup } : {})));
+});
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes.lockedGroup) return;
-  LOCKED_GROUPS = [changes.lockedGroup.newValue || 'CoreCore'];
-  resync();
+  if (area === 'local' && changes.prefs?.newValue) prefsChanged(prefsFrom(changes.prefs.newValue));
 });
 
 // Every read-modify-write goes through this queue so overlapping tab events can't clobber each other.
@@ -47,6 +91,7 @@ let mru = []; // tab ids, most recently used first
 const noteTab = t => tabInfo.set(t.id, { windowId: t.windowId, title: t.title || '', url: t.url || t.pendingUrl || '' });
 
 async function loadState() {
+  await prefsReady;
   const tabs = await chrome.tabs.query({});
   tabs.forEach(noteTab);
   const { mru: saved = [] } = await chrome.storage.session.get('mru');
@@ -71,6 +116,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
 });
 
 async function lockedTabs() {
+  if (!PREFS.lockedTabs) return { ids: new Set((await chrome.tabs.query({})).map(t => t.id)), locked: [] };
   const groups = HAS_GROUPS ? await chrome.tabGroups.query({}) : [];
   const locked = new Map(groups.filter(g => LOCKED_GROUPS.includes(g.title)).map(g => [g.id, g]));
   const tabs = await chrome.tabs.query({});
@@ -124,7 +170,7 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab) return;
     const group = inGroup(tab) ? await chrome.tabGroups.get(tab.groupId) : null;
-    const isLocked = tab.pinned || LOCKED_GROUPS.includes(group?.title);
+    const isLocked = PREFS.lockedTabs && (tab.pinned || LOCKED_GROUPS.includes(group?.title));
     await sync(p => { if (isLocked) p[tabId] ??= tab.url || tab.pendingUrl; else delete p[tabId]; });
     if (isLocked) injectPeekCatch(tabId);
     else chrome.tabs.sendMessage(tabId, { mini: 'locked', value: false }).catch(() => {});
@@ -155,7 +201,7 @@ chrome.tabs.onRemoved.addListener((tabId, { isWindowClosing }) => {
 });
 
 // New tabs open at the top of the tab list, just under the locked tabs (pinned, then the CoreCore
-// group). A tab opened from a link in a normal tab stays where Chrome puts
+// group), unless newTabsAtTop is off. A tab opened from a link in a normal tab stays where Chrome puts
 // it, right after that tab. One opened in the background from a locked tab goes to the top, and if
 // Chrome dropped it into the locked group it's taken out, so it doesn't get locked; one opened in the
 // foreground from a locked tab becomes a peek (mini-browser.js). Tabs in other groups are left alone.
@@ -180,8 +226,11 @@ async function topIndex(windowId, exceptTabId) {
 
 // peek's click catch (peek-click.js, and peek-open.js in the page's world) runs only in locked
 // tabs: put there when a tab locks and on each navigation of a locked tab. (A group renamed to or from
-// CoreCore isn't noticed; those tabs fall back to the tab-then-peek path until they navigate.)
+// CoreCore isn't noticed; those tabs fall back to the tab-then-peek path until they navigate.) With
+// Settings → Mini Browsers → Peek browsers off, it isn't put anywhere, and the scripts already in
+// locked tabs are told to stand down.
 async function injectPeekCatch(tabId, frameId) {
+  if (!PREFS.peek) return;
   const target = frameId === undefined ? { tabId, allFrames: true } : { tabId, frameIds: [frameId] };
   await chrome.scripting.executeScript({ target, files: ['peek-click.js'] }).catch(() => {});
   await chrome.scripting.executeScript({ target, files: ['peek-open.js'], world: 'MAIN' }).catch(() => {});
@@ -189,6 +238,14 @@ async function injectPeekCatch(tabId, frameId) {
 chrome.webNavigation.onCommitted.addListener(async d => {
   if (/^https?:/.test(d.url) && await isLocked(d.tabId)) injectPeekCatch(d.tabId, d.frameId);
 });
+
+async function peekEverywhere(on) {
+  await ready;
+  for (const id of lockedIds) {
+    if (on) injectPeekCatch(id);
+    else chrome.tabs.sendMessage(id, { mini: 'locked', value: false }).catch(() => {});
+  }
+}
 
 // ⌥⌘-click on a link: the helper's tap turns it into ⌘-click (a background tab) and says so, and that
 // tab becomes a mini browser.
@@ -208,7 +265,7 @@ chrome.tabs.onCreated.addListener(created => {
     // Chrome records an opener for ⌘T too; only a link (not the New Tab page) stays by its opener.
     const newTabPage = /^chrome:\/\/new-?tab/.test(created.pendingUrl || created.url);
     if (tab.openerTabId && !newTabPage && !(await isLocked(tab.openerTabId))) return;
-    if (tab.openerTabId && !newTabPage && tab.active) { // queues its own run(): don't wait for it inside this one
+    if (tab.openerTabId && !newTabPage && tab.active && PREFS.peek) { // queues its own run(): don't wait for it inside this one
       openPeekBrowser({ tabId: tab.id }, { id: tab.openerTabId, windowId: tab.windowId }).catch(console.error);
       return;
     }
@@ -216,6 +273,7 @@ chrome.tabs.onCreated.addListener(created => {
       if (!LOCKED_GROUPS.includes((await chrome.tabGroups.get(tab.groupId)).title)) return;
       await chrome.tabs.ungroup(tab.id);
     }
+    if (!PREFS.newTabsAtTop) return; // Settings → Tabs: where the browser puts it
     const index = await topIndex(tab.windowId, tab.id);
     if (tab.index !== index) await chrome.tabs.move(tab.id, { index });
   });
@@ -318,10 +376,16 @@ importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js', 'omnibox
 
 chrome.action.onClicked.addListener(reset);
 
-// The options page asks what it shows.
+// The options page asks what it shows, sets the locked group's title while the app is away (kept also
+// under the legacy key, so the app adopts it at the next hello if it has none of its own), and opens
+// the app's settings window.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (!msg.status) return;
-  reply({ helper: helperUp(), lockedGroup: LOCKED_GROUPS[0] });
+  if (msg.status) return reply({ helper: helperUp(), lockedGroup: PREFS.lockedGroup });
+  if (msg.appSettings) return helperSend({ settings: true });
+  if (typeof msg.lockedGroup !== 'string' || helperUp()) return;
+  const next = prefsFrom({ ...PREFS, lockedGroup: msg.lockedGroup.trim() });
+  chrome.storage.local.set({ prefs: next, lockedGroup: next.lockedGroup }).then(() => { prefsChanged(next); reply(true); });
+  return true;
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {

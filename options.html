@@ -12,6 +12,7 @@
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; margin-right: 8px; }
   .dot.on { background: #1e8e3e; }
   label { display: block; font-weight: 600; margin: 14px 0 4px; }
+  input:disabled { opacity: .6; }
   input { font: inherit; width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; background: #fff; }
   .note { color: #5f6368; margin: 4px 0 0; }
   .row { display: flex; gap: 8px; margin-top: 16px; }
@@ -30,10 +31,11 @@
   <div id="groups">
     <label for="group">Locked tab group</label>
     <input id="group" spellcheck="false" autocomplete="off">
-    <p class="note">Tabs in a group with this title behave like pinned tabs: closing one brings it back at its locked address.</p>
+    <p class="note" id="group-note">Tabs in a group with this title behave like pinned tabs: closing one brings it back at its locked address. Empty: only pinned tabs lock.</p>
   </div>
 
   <div class="row">
+    <button id="app-settings" hidden>Monochrome Settings…</button>
     <button id="shortcuts">Keyboard Shortcuts…</button>
   </div>
   <script src="options.js"></script>

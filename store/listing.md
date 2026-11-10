@@ -53,7 +53,7 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 
 **Remote code:** No.
 
-**Data usage:** The extension does not collect or transmit user data. Tab addresses, titles and a picture of the front tab are passed to a companion app on the same computer over Chrome's native messaging port and are not sent anywhere else. Certify: not sold, not used for unrelated purposes, not used for creditworthiness.
+**Data usage:** The extension does not collect or transmit user data. Tab addresses, titles and a picture of the front tab are passed to a companion app on the same computer over Chrome's native messaging port and are not sent anywhere else. (The companion app, not the extension, sends what is typed into its command bar to Google for suggestions, which can be turned off in its settings; `docs/privacy.md` lists its requests.) Certify: not sold, not used for unrelated purposes, not used for creditworthiness.
 
 **Privacy policy URL:** https://artifact.com/privacy?Monochrome, the shared policy for Artifact apps with no tracking and no server; `docs/privacy.md` is the detailed statement for this one.
 

@@ -3,12 +3,16 @@
 // same tap sees what an extension can't without a script in every page: a scroll (the tab in front
 // has changed, for its thumbnail), an ⌥⌘-click (a link to open as a mini browser: it becomes a ⌘-click,
 // which Chrome opens as a background tab, and the extension is told that tab is a mini browser), and ⌘L
-// in a mini browser (its address field is the helper's), ⌘L and ⌘T elsewhere (the helper's address box,
+// in a mini browser (its address field is the helper's), ⌘L and ⌘T elsewhere (the helper's command bar,
 // Omnibox.swift), and the mini browser shortcuts themselves: ⌥⇧N
 // from any app for a new one, ⌘O and ⇧⌘O in one to open it in Chrome or pick where. Chrome can't
 // pre-set those for the extension (a manifest suggests at most four keys and none global), so the
 // helper takes them when it's connected and the extension's own shortcuts are the fallback. ⌃⌥→, ⌃⌥←
 // and ⌃⌥1 to 9 switch Chrome profiles (Profiles.swift).
+//
+// Each of those can be turned off in the settings window (Prefs.swift), read here per keystroke so a
+// switch flipped there counts at once: profileArrows, profileDigits, miniHotkey, miniClick and switcher
+// pass the keys or the click through to the browser untouched.
 //
 // With the extension connected, ⌃Tab and ⌃⇧Tab step through the switcher (Switcher.swift) and letting
 // go of Control picks a tab; Chrome never sees the keystroke. Without it, the keys are rewritten to
@@ -81,7 +85,7 @@ final class Tap {
     }
     if type == .leftMouseDown || type == .leftMouseUp {
       onMouse(type == .leftMouseDown)
-      if Chrome.isFrontmost && option && command && !control && !shift {
+      if Chrome.isFrontmost && option && command && !control && !shift && Prefs.miniClick {
         event.flags = flags.subtracting(.maskAlternate)
         if type == .leftMouseDown { onAltCommandClick() }
       }
@@ -98,14 +102,14 @@ final class Tap {
     let key = event.getIntegerValueField(.keyboardEventKeycode)
     let typed = Keyboard.character(key)
     // ⌥⇧N anywhere: a new mini browser, the one shortcut that has to work from other apps.
-    if typed == "n" && option && shift && !command && !control && onNewMiniBrowser() { return nil }
+    if typed == "n" && option && shift && !command && !control && Prefs.miniHotkey && onNewMiniBrowser() { return nil }
     guard Chrome.isFrontmost, !omniboxShown() else { return pass }
     // ⌃⌥ with an arrow or a digit: profiles.
-    // Off in Settings for window managers (Rectangle) that use ⌃⌥ arrows and digits themselves.
-    if control && option && !command && !shift && UserDefaults.standard.object(forKey: "profileHotkeys") as? Bool ?? true {
-      if key == Tap.right { onProfile(1, nil); return nil }
-      if key == Tap.left { onProfile(-1, nil); return nil }
-      if let digit = Int(typed), (1...9).contains(digit) { onProfile(0, digit - 1); return nil }
+    // Off in Settings → Browser for window managers (Rectangle) that use ⌃⌥ arrows and digits themselves.
+    if control && option && !command && !shift {
+      if Prefs.profileArrows && key == Tap.right { onProfile(1, nil); return nil }
+      if Prefs.profileArrows && key == Tap.left { onProfile(-1, nil); return nil }
+      if Prefs.profileDigits, let digit = Int(typed), (1...9).contains(digit) { onProfile(0, digit - 1); return nil }
     }
     if key == Tap.escape && switcher.isWalking {
       switcher.cancel()
@@ -114,7 +118,7 @@ final class Tap {
     if typed == "l" && command && !control && !option && !shift && onCommandL() { return nil }
     if typed == "t" && command && !control && !option && !shift && onCommandT() { return nil }
     if typed == "o" && command && !control && !option && onMiniBrowserOpen(shift) { return nil }
-    guard key == Tap.tab, control, !flags.contains(.maskCommand), !flags.contains(.maskAlternate) else { return pass }
+    guard key == Tap.tab, control, !flags.contains(.maskCommand), !flags.contains(.maskAlternate), Prefs.switcher else { return pass }
     log.info("ctrl-tab: shift=\(shift, privacy: .public) switcher=\(self.useSwitcher(), privacy: .public)")
     if useSwitcher() {
       switcher.step(back: shift)

@@ -55,6 +55,7 @@ case "--demo-shade":
   app.run()
 case "--status":
   print("layout: n=\(Keyboard.code(for: "n", qwerty: 45)) o=\(Keyboard.code(for: "o", qwerty: 31)) l=\(Keyboard.code(for: "l", qwerty: 37)) .=\(Keyboard.code(for: ".", qwerty: 47)) ,=\(Keyboard.code(for: ",", qwerty: 43)) (keycodes under the current keyboard layout)")
+  print("browser:", Browser.current.name)
   print("app:", NSRunningApplication.runningApplications(withBundleIdentifier: App.bundleId).isEmpty ? "not running" : "running")
   print("host:", Socket.connect(Socket.path).map { close($0); return "socket up" } ?? "socket down")
   exit(0)

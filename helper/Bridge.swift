@@ -2,6 +2,12 @@
 // (--host, see Host.swift) for the extension's one open port; the app half (App.swift) is launched by
 // the login item and owns the event tap and the panels. They meet on a Unix socket the app listens on,
 // one JSON object per line in each direction. The host is a relay and understands none of it.
+//
+// Safari has no hosts: the extension's port reaches the app extension inside Monochrome.app
+// (safari/SafariWebExtensionHandler.swift), a sandboxed process of its own, which writes each message
+// to a second socket the app listens on in the app group's container (SafariSocket), one line per
+// message wrapped with the Safari profile it came from. The app answers through
+// SFSafariApplication.dispatchMessage (Safari.swift). This file is compiled into both targets.
 import Foundation
 import os
 
@@ -37,8 +43,30 @@ enum Socket {
   }
 }
 
+// Where the app's messages to one copy of the extension go: Chrome's host socket, or Safari (SafariPeer).
+protocol Peer: AnyObject {
+  func send(_ line: String)
+}
+
+// The Safari relay's socket, in the app group's container: the one place both the sandboxed app
+// extension and the app can reach. Lines on it are {"profile": "<Safari profile UUID or empty>",
+// "message": <the extension's message>}.
+enum SafariSocket {
+  static let appGroup = "TVA9Z8LD95.com.artifact.monochrome"
+
+  static var path: String {
+    if let p = ProcessInfo.processInfo.environment["MONOCHROME_SAFARI_SOCKET"] { return p }
+    // The app extension is sandboxed and gets its container from the entitlement; the app is not, and an
+    // unsigned build has no entitlement, so it falls back to where macOS puts group containers.
+    let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+      ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Group Containers/\(appGroup)")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("safari.sock").path
+  }
+}
+
 // One connected peer: lines in through onLine, lines out through send.
-final class LineSocket {
+final class LineSocket: Peer {
   let fd: Int32
   var onLine: (String) -> Void = { _ in }
   var onClose: () -> Void = {}

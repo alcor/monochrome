@@ -8,20 +8,38 @@
 import AppKit
 import UserNotifications
 
+// Which browser the app works with, set on the settings window's General tab. Everything that follows
+// "Chrome" below (the front app check, its windows over the window list and Accessibility, opening
+// links) follows Safari instead when this says Safari; the launch flags, the Dock tile and the
+// Profiles menu stay Chrome's. Kept in the app's defaults; Chrome until changed.
+enum Browser: String, CaseIterable, Identifiable {
+  case chrome, safari
+  var id: String { rawValue }
+  var name: String { self == .chrome ? "Chrome" : "Safari" }
+
+  static var current: Browser {
+    get { UserDefaults.standard.string(forKey: "browser").flatMap(Browser.init(rawValue:)) ?? .chrome }
+    set { UserDefaults.standard.set(newValue.rawValue, forKey: "browser") }
+  }
+}
+
 enum Chrome {
   // Every Chrome the extension runs in, each with its own profiles, extension copy and native
   // messaging host folder (Install.swift registers with each one that has run). Their windows and
   // connections are handled together; stable comes first and is what the Dock icon and the login
   // item start when none is running. `name` is what their window titles carry.
   struct Variant { let bundleId: String, name: String }
-  static let variants = [
+  static let chromeVariants = [
     Variant(bundleId: "com.google.Chrome", name: "Google Chrome"),
     Variant(bundleId: "com.google.Chrome.beta", name: "Google Chrome Beta"),
     Variant(bundleId: "com.google.Chrome.dev", name: "Google Chrome Dev"),
     Variant(bundleId: "com.google.Chrome.canary", name: "Google Chrome Canary"),
     Variant(bundleId: "org.chromium.Chromium", name: "Chromium"),
   ]
-  static let bundleIds = variants.map(\.bundleId)
+  static let safari = Variant(bundleId: Safari.bundleId, name: "Safari")
+  // The browsers in play: every Chrome, or Safari alone.
+  static var variants: [Variant] { Browser.current == .safari ? [safari] : chromeVariants }
+  static var bundleIds: [String] { variants.map(\.bundleId) }
   static let features = ["OmniboxForceAllowedToBeDefault"]
 
   static func isChrome(_ bundleId: String?) -> Bool { bundleId.map(bundleIds.contains) ?? false }
@@ -41,12 +59,13 @@ enum Chrome {
 
   // Kept from the workspace's activation notices rather than asked per event: the tap consults it on
   // every keystroke and click.
-  static var isFrontmost: Bool { _ = frontmostObserver; return frontmost }
-  private static var frontmost = false
+  // (The front app's id is kept, not the answer, so a change of browser in settings counts at once.)
+  static var isFrontmost: Bool { _ = frontmostObserver; return isChrome(frontmost) }
+  private static var frontmost: String?
   private static let frontmostObserver: Void = {
-    frontmost = isChrome(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
-      frontmost = isChrome((note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier)
+      frontmost = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
     }
   }()
 
@@ -57,7 +76,7 @@ enum Chrome {
     guard let appURL = running?.bundleURL ?? bundleIds.lazy.compactMap({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }).first else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = activate
-    if running == nil { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
+    if running == nil && Browser.current == .chrome { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
     if urls.isEmpty {
       NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     } else {
@@ -69,7 +88,7 @@ enum Chrome {
   // instead of silently doing nothing.
   static var warnedPid: pid_t = 0
   static func warnIfStartedWithoutFlags() {
-    guard let running, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
+    guard Browser.current == .chrome, let running, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
     warnedPid = running.processIdentifier
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in

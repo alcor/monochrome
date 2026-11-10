@@ -1,6 +1,7 @@
 # The Mac app. `make project` turns this into Monochrome.xcodeproj (not committed); the Makefile has the
 # build, install and release targets. The extension at the repository root is not built by Xcode: the
-# run script below copies it into the app for the Extension tab's Load unpacked.
+# app's run script copies it into the app for the Extension tab's Load unpacked, and the Safari
+# extension target's run script copies it into the app extension Safari loads (docs/safari.md).
 name: Monochrome
 options:
   bundleIdPrefix: com.artifact
@@ -42,11 +43,16 @@ targets:
         buildPhase: resources
     dependencies:
       - package: Sparkle
+      # Embedded in Contents/PlugIns: what Safari lists as the Monochrome extension.
+      - target: MonochromeSafari
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.artifact.monochrome
         PRODUCT_NAME: Monochrome
         ASSETCATALOG_COMPILER_APPICON_NAME: Monochrome
+        # The app group whose container holds the Safari relay's socket (SafariSocket in Bridge.swift).
+        CODE_SIGN_ENTITLEMENTS: helper/Monochrome.entitlements
     info:
       path: helper/Info.plist
       properties:
@@ -100,3 +106,41 @@ targets:
               ids.append(open(store).read().strip())
           json.dump(list(dict.fromkeys(i for i in ids if i)), open(out, 'w'))
           PY
+
+  # The Safari Web Extension: the same extension files with a Safari manifest (store/safari-manifest.py),
+  # and SafariWebExtensionHandler, which relays the extension's native messages to the running app. An
+  # app extension must be sandboxed; the app group gives it and the app one folder to meet in.
+  MonochromeSafari:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: safari
+        excludes: ["Info.plist", "*.entitlements"]
+      - path: helper/Bridge.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.artifact.monochrome.extension
+        PRODUCT_NAME: Monochrome Extension
+        CODE_SIGN_ENTITLEMENTS: safari/Extension.entitlements
+        SKIP_INSTALL: YES
+    info:
+      path: safari/Info.plist
+      properties:
+        CFBundleDisplayName: Monochrome
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableDescription: Locked tabs, new tabs at the top, a ⌃Tab switcher with thumbnails, mini and peek browsers, and link routing for Safari.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler
+    postBuildScripts:
+      - name: Extension files
+        basedOnDependencyAnalysis: false
+        script: |
+          # The files store/files lists, into the app extension's Resources, where Safari reads the
+          # extension; manifest.json is the Safari one, written from the Chrome manifest.
+          set -eu
+          resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$resources/icons"
+          grep -v '^manifest.json$' "$SRCROOT/store/files" | while read -r f; do cp "$SRCROOT/$f" "$resources/$f"; done
+          python3 -I "$SRCROOT/store/safari-manifest.py" "$SRCROOT/manifest.json" "$resources/manifest.json"

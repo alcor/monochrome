@@ -27,7 +27,8 @@ enum Install {
     setChromeShortcuts()
     removeEarlierVersions()
     let path = Bundle.main.bundleURL.path
-    if defaults.string(forKey: "dockTileFor") != path { placeDockTile(path: path) }
+    // The tile is there to start Chrome with its flags; Safari takes none.
+    if Browser.current == .chrome && defaults.string(forKey: "dockTileFor") != path { placeDockTile(path: path) }
     if defaults.string(forKey: "defaultBrowserAskedFor") != path {
       defaults.set(path, forKey: "defaultBrowserAskedFor")
       makeDefaultBrowser {}
@@ -99,7 +100,7 @@ enum Install {
                           "Select Next Tab": "@~\u{F701}", "Select Previous Tab": "@~\u{F700}"]
 
   static func setChromeShortcuts() {
-    for (domain, variant) in zip(chromeDomains, Chrome.variants) {
+    for (domain, variant) in zip(chromeDomains, Chrome.chromeVariants) {
       guard domain == chromeDomains[0] || NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId) != nil,
             let prefs = UserDefaults(suiteName: domain) else { continue }
       var keys = prefs.dictionary(forKey: "NSUserKeyEquivalents") as? [String: String] ?? [:]

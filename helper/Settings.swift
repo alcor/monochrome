@@ -13,7 +13,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let size = NSSize(width: 760, height: 464)
   var connectionsSummary: () -> String = { "" }
-  var connectedProfiles: () -> [String] = { [] }
+  var connectedProfiles: () -> [ConnectedProfile] = { [] }
   var checkForUpdates: () -> Void = {}
   private var window: NSWindow?
   private var tabs: SettingsTabs?
@@ -96,6 +96,38 @@ final class SettingsTabs: NSTabViewController {
 }
 
 // General: login item, default browser, Accessibility, and what the app sees of Chrome and its extension.
+// A profile whose extension is talking to the app, as the Browser Profiles list shows it: the browser's
+// icon, the profile's avatar, its name.
+struct ConnectedProfile: Identifiable {
+  let name: String
+  let browser: String
+  let appIcon: NSImage
+  let look: ProfileLook
+  var id: String { browser + "\u{0}" + name }
+}
+
+extension ConnectedProfile {
+  // nil until Chrome's window titles have told the app the profile's name.
+  init?(_ connection: Connection) {
+    let variant: Chrome.Variant, look: ProfileLook
+    if let safari = connection.safari {
+      variant = Chrome.safari
+      name = connection.profile ?? safari.label
+      look = ProfileLook()
+    } else {
+      guard let profile = connection.profile else { return nil }
+      let index = Chrome.chromeVariants.firstIndex { $0.name == connection.browser } ?? 0
+      variant = Chrome.chromeVariants[index]
+      name = profile
+      look = ChromeAvatars.look(folder: Install.hostFolders[index], title: profile)
+    }
+    browser = variant.name
+    self.look = look
+    appIcon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId).map { NSWorkspace.shared.icon(forFile: $0.path) }
+      ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)!
+  }
+}
+
 final class GeneralModel: ObservableObject {
   @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
   @Published var isDefaultBrowser = false
@@ -103,12 +135,12 @@ final class GeneralModel: ObservableObject {
   @Published var browserWarning: String? // shown as a triangle by the Browser Profiles header
   @Published var browser = Browser.current
   @Published var extensions = ""
-  @Published var connected: [String] = []
+  @Published var connected: [ConnectedProfile] = []
   let connections: () -> String
-  let profiles: () -> [String]
+  let profiles: () -> [ConnectedProfile]
   let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
 
-  init(connections: @escaping () -> String, profiles: @escaping () -> [String]) {
+  init(connections: @escaping () -> String, profiles: @escaping () -> [ConnectedProfile]) {
     self.connections = connections
     self.profiles = profiles
     refresh()
@@ -193,7 +225,13 @@ struct GeneralSettings: View {
           if model.connected.isEmpty {
             Text("No profile has connected").foregroundStyle(.secondary)
           } else {
-            ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
+            ForEach(model.connected) { profile in
+              HStack(spacing: 8) {
+                Image(nsImage: profile.appIcon).resizable().frame(width: 18, height: 18).help(profile.browser)
+                ProfileAvatar(name: profile.name, look: profile.look, size: 18)
+                Text(profile.name).foregroundStyle(.secondary)
+              }
+            }
           }
           Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
         } header: {

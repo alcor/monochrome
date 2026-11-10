@@ -71,9 +71,7 @@ final class App: NSObject, NSApplicationDelegate {
     NSApp.mainMenu = mainMenu()
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
-    SettingsWindow.shared.connectedProfiles = { [weak self] in
-      self?.connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
-    }
+    SettingsWindow.shared.connectedProfiles = { [weak self] in self?.connections.compactMap(ConnectedProfile.init) ?? [] }
     SettingsWindow.shared.connectionsSummary = { [weak self] in
       guard let self, !connections.isEmpty else { return "Not connected" }
       let names = connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }

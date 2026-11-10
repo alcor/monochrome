@@ -215,8 +215,5 @@ private struct ProfileCard: View {
   }
 
   // A hue from the name, steady across launches.
-  private var color: Color {
-    let hash = profile.name.unicodeScalars.reduce(5381) { ($0 << 5) &+ $0 &+ Int($1.value) }
-    return Color(hue: Double(abs(hash) % 360) / 360, saturation: 0.55, brightness: 0.75)
-  }
+  private var color: Color { ProfileAvatar.hue(profile.name) }
 }

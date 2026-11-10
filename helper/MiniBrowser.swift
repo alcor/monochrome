@@ -67,6 +67,7 @@ final class MiniBrowsers {
       bar.hide()
       if !windows.contains(where: { $0.id == id }) { bars[id] = nil }
     }
+    windowIds = windowIds.filter { id, _ in windows.contains { $0.id == id } } // closed ones give their window up
     // The shade stays through a drag of the peek browser: its window is known by number once matched,
     // and a tick or two without it (a drag, a frame in flight) doesn't drop it.
     if front, let peek = windows.first(where: { $0.over != nil }), let over = Chrome.match(peek.over!, in: onScreen),
@@ -88,15 +89,22 @@ final class MiniBrowsers {
   // is still on screen, else by frame.
   private func resolve(_ w: MiniBrowser, in onScreen: [Chrome.Window]) -> Chrome.Window? {
     if let id = windowIds[w.id], let window = onScreen.first(where: { $0.id == id }) { return window }
-    guard let window = Chrome.match(w.frame, in: onScreen) else { return nil }
+    // Not a window another mini browser already holds: stacked ones share a frame.
+    // ponytail: stacked mini browsers none of which is matched yet (the app restarted under them) go by
+    // list order, so one can get the other's window; a new one is matched while it's in front, which is right.
+    let taken = Set(windowIds.filter { $0.key != w.id }.values)
+    guard let window = Chrome.match(w.frame, in: onScreen.filter { !taken.contains($0.id) }) else { return nil }
     windowIds[w.id] = window.id
     return window
   }
 
   // The mini browser whose window is Chrome's front one.
   var frontWindow: MiniBrowser? {
-    guard let front = Chrome.windows().first else { return nil }
-    return windows.first { Chrome.match($0.frame, in: [front]) != nil }
+    // By window number, as follow() places the bars: mini browsers stacked over one window share a frame,
+    // so matching by frame could pick one behind the front one and open its hidden address field.
+    let onScreen = Chrome.windows()
+    guard let front = onScreen.first else { return nil }
+    return windows.first { resolve($0, in: onScreen)?.id == front.id }
   }
 
   func showAddress(_ id: Int) { bars[id]?.showAddress() }

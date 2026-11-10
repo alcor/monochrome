@@ -40,6 +40,7 @@ final class OmniboxController: NSObject, NSWindowDelegate {
   }
 
   var isVisible: Bool { panel.isVisible && hideWork == nil }
+  var isKey: Bool { panel.isKeyWindow }
 
   // Over the browser window, centered across it, the field's top a fifth of the way down (at most 140).
   func show(newTab: Bool, browser: Browser, over window: NSRect?) {
@@ -80,6 +81,16 @@ final class OmniboxController: NSObject, NSWindowDelegate {
   }
 
   func windowDidResignKey(_ notification: Notification) { hide() }
+
+  // --omnibox-snapshot: the panel as the window server draws it, glass included, from the app's own
+  // window (an app may read its own windows without the Screen Recording grant).
+  func snapshot(to path: String) {
+    guard panel.isVisible,
+          let image = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(panel.windowNumber), [.boundsIgnoreFraming, .bestResolution])
+    else { return log.info("omnibox: snapshot: no panel on screen") }
+    try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+    log.info("omnibox: snapshot \(image.width)x\(image.height) to \(path, privacy: .public)")
+  }
 
   // --demo-omnibox: sample history typed into, drawn into a PNG at `out` from the view itself (no
   // screen recording, and the panel never takes the keyboard). Glass does not draw this way; the scrim
@@ -178,6 +189,14 @@ final class OmniboxField: NSTextField, NSTextFieldDelegate {
     #selector(NSResponder.moveToEndOfLine(_:)), #selector(NSResponder.moveToRightEndOfLine(_:)), #selector(NSResponder.moveToEndOfDocument(_:))]
 
   // Tab, →, or End takes the gray completion; with none, Tab moves down the list as ↓ does.
+  // --omnibox ... show: text typed through the field editor, as keys would, a character at a time.
+  func typeForTest(_ text: String) {
+    guard let editor else { return log.info("omnibox test: the field is not being edited") }
+    for character in text {
+      editor.insertText(String(character), replacementRange: editor.selectedRange())
+    }
+  }
+
   func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
     guard let model else { return false }
     if Self.acceptKeys.contains(selector) && !model.completion.isEmpty && model.selected == 0 {

@@ -231,19 +231,27 @@ final class App: NSObject, NSApplicationDelegate {
   // is in front.
   func testOmnibox(_ test: [String: Any]) {
     let safari = test["browser"] as? String == "safari"
-    let candidates = allConnections.filter { ($0.safari != nil) == safari }
-    guard let connection = candidates.first(where: { $0.profile != nil }) ?? candidates.first else { return log.info("omnibox test: no \(safari ? "Safari" : "Chrome", privacy: .public) connection") }
-    _ = openOmnibox(newTab: true, connection: connection, display: false)
+    // Browsers' connections only: they have reported tabs. (This command's own socket is a connection too.)
+    let candidates = allConnections.filter { ($0.safari != nil) == safari && (!$0.tabs.isEmpty || $0.front != nil) }
+    let wanted = (test["profile"] as? String ?? "").lowercased()
+    let named = wanted == "@last" ? candidates.last : wanted.isEmpty ? nil : candidates.first { ($0.safari?.profile ?? $0.profile ?? "").lowercased().hasPrefix(wanted) || ($0.profile ?? "").lowercased().hasPrefix(wanted) }
+    guard let connection = named ?? candidates.first(where: { $0.profile != nil }) ?? candidates.first else { return log.info("omnibox test: no \(safari ? "Safari" : "Chrome", privacy: .public) connection") }
+    let show = test["show"] as? Bool ?? false
+    _ = openOmnibox(newTab: test["newTab"] as? Bool ?? true, connection: connection, display: show)
     let query = test["query"] as? String ?? ""
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
       let model = omnibox.model
-      model.update(query: query, allowCompletion: true)
+      if show { omnibox.field.typeForTest(query) } else { model.update(query: query, allowCompletion: true) }
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
         log.info("omnibox test: \(model.pages.count) pages, \(model.tabs.count) tabs, current \(model.current?.url ?? "none", privacy: .public)")
         log.info("omnibox test: \(query, privacy: .public)[\(model.completion, privacy: .public)]")
+        if show, let editor = omnibox.field.currentEditor() {
+          log.info("omnibox test: field \(editor.string, privacy: .public), selected \(NSStringFromRange(editor.selectedRange), privacy: .public), panel key \(self.omnibox.isKey)")
+        }
         for (i, row) in model.rows.enumerated() {
           log.info("omnibox test: \(i) \(row.id, privacy: .public) | \(row.title, privacy: .public) | \(row.detail ?? "", privacy: .public) | icon \(row.page.map { model.icons[$0] != nil } ?? false)")
         }
+        if test["commit"] as? Bool == true { model.commit() } // Return on the top row
       }
     }
   }
@@ -561,6 +569,7 @@ final class App: NSObject, NSApplicationDelegate {
     }
     if message["settings"] != nil { SettingsWindow.shared.show() } // --settings, over the socket
     if let test = message["omniboxTest"] as? [String: Any] { testOmnibox(test) } // --omnibox, over the socket
+    if let path = message["omniboxSnapshot"] as? String { omnibox.snapshot(to: path) } // --omnibox-snapshot
     if message.keys.contains("player") {
       let state = (message["player"] as? [String: Any]).flatMap { try? JSONSerialization.data(withJSONObject: $0) }
         .flatMap { try? JSONDecoder().decode(PlayerState.self, from: $0) }

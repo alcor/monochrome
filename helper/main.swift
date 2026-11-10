@@ -16,8 +16,10 @@
 //   --routes [url [sender]]  the link rules (Routes.swift) and, for a URL, the rule it would take
 //   --settings      open the settings window of the running app (started if it is not)
 //   --demo-omnibox <out.png> [dark]  the ⌘L/⌘T box on sample history, drawn into a PNG
-//   --omnibox chrome|safari [query]  the ⌘L/⌘T box's model for that browser's profile, typed into
-//                   without showing it; the running app logs the rows (Omnibox.swift)
+//   --omnibox-snapshot <out.png>  the open ⌘L/⌘T box as on screen, into a PNG
+//   --omnibox chrome|safari [query] [--show] [--current] [--commit] [--profile=<name, Safari id prefix or @last>]  the
+//                   ⌘L/⌘T box's model for that browser's profile, typed into without showing it (--show: the panel shown, typed into through
+//                   its field; it takes the keyboard); the running app logs the rows (Omnibox.swift)
 //   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
@@ -94,9 +96,13 @@ case "--demo-omnibox":
   let omnibox = OmniboxController()
   omnibox.demo(out: CommandLine.arguments.dropFirst(2).first ?? "omnibox.png", dark: CommandLine.arguments.contains("dark"))
   app.run()
-case "--omnibox":
+case "--omnibox", "--omnibox-snapshot":
   let rest = Array(CommandLine.arguments.dropFirst(2))
-  let message = ["omniboxTest": ["browser": rest.first ?? "chrome", "query": rest.dropFirst().joined(separator: " ")]]
+  let message: [String: Any] = CommandLine.arguments[1] == "--omnibox-snapshot"
+    ? ["omniboxSnapshot": rest.first ?? "omnibox.png"]
+    : ["omniboxTest": ["browser": rest.first ?? "chrome", "show": rest.contains("--show"), "newTab": !rest.contains("--current"), "commit": rest.contains("--commit"),
+                       "profile": rest.first { $0.hasPrefix("--profile=") }.map { String($0.dropFirst(10)) } ?? "",
+                       "query": rest.dropFirst().filter { !$0.hasPrefix("--") }.joined(separator: " ")]]
   guard let fd = Socket.connect(Socket.path), var line = try? JSONSerialization.data(withJSONObject: message) else {
     FileHandle.standardError.write(Data("Monochrome is not running\n".utf8))
     exit(1)

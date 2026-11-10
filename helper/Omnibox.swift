@@ -72,7 +72,7 @@ final class OmniboxModel: ObservableObject {
   var current: OmniboxTab?
   private(set) var query = ""
   private var suggestions: (query: String, items: [OmniboxSuggestion]) = ("", [])
-  private var hosts: [String: (score: Double, root: String?, eligible: Bool)] = [:]
+  private var hosts: [String: (score: Double, root: String?, eligible: Bool, scheme: String)] = [:]
   private var iconsAsked = Set<String>()
 
   var onGo: ([String: Any]) -> Void = { _ in }
@@ -157,9 +157,9 @@ final class OmniboxModel: ObservableObject {
   // MARK: - Ranking
 
   private func indexHosts() {
-    var stats: [String: (score: Double, root: String?, eligible: Bool)] = [:]
+    var stats: [String: (score: Double, root: String?, eligible: Bool, scheme: String)] = [:]
     for page in pages where !page.host.isEmpty {
-      var stat = stats[page.host] ?? (0, nil, false)
+      var stat = stats[page.host] ?? (0, nil, false, page.url.lowercased().hasPrefix("http://") ? "http" : "https")
       stat.score += page.frecency
       // A host is completed inline once it has been typed, bookmarked or visited twice: a single
       // click-through from a search is not a reason to finish someone's typing.
@@ -180,7 +180,8 @@ final class OmniboxModel: ObservableObject {
     if !typed.contains("/") {
       guard let best = hosts.filter({ $0.key.hasPrefix(typed) && $0.value.eligible }).max(by: { $0.value.score < $1.value.score })
       else { return ("", nil) }
-      return (String(best.key.dropFirst(typed.count)), best.value.root ?? "https://" + best.key)
+      // The host's own root page when history has it, else its root on the scheme its pages use.
+      return (String(best.key.dropFirst(typed.count)), best.value.root ?? best.value.scheme + "://" + best.key + "/")
     }
     guard let best = pages.filter({ $0.stripped.hasPrefix(typed) && ($0.typed > 0 || $0.bookmarked || $0.visits > 1) })
       .max(by: { $0.frecency < $1.frecency })
@@ -375,9 +376,8 @@ enum Omnibox {
   }
 }
 
-// Safari's history and bookmarks for one profile, read from its files. Safari keeps the default
-// profile's in ~/Library/Safari and each other profile's under Profiles/<id>; the database is copied
-// first, since Safari holds it open and writes to it. Kept for a minute per profile.
+// Safari's history and bookmarks for one profile, read from its files (databaseURL has where); the
+// database is copied first, since Safari holds it open and writes to it. Kept for a minute per profile.
 enum SafariHistory {
   private static var cache: [String: (read: Date, pages: [OmniboxPage])] = [:]
   private static let queue = DispatchQueue(label: "com.artifact.monochrome.safari-history")
@@ -395,37 +395,77 @@ enum SafariHistory {
 
   private static var library: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Safari") }
 
-  static func databaseURL(profile: String) -> URL? {
-    let fm = FileManager.default
-    if profile.isEmpty { return library.appendingPathComponent("History.db") }
-    let profiles = library.appendingPathComponent("Profiles")
-    let names = (try? fm.contentsOfDirectory(atPath: profiles.path)) ?? []
-    guard let name = names.first(where: { $0.caseInsensitiveCompare(profile) == .orderedSame }) else {
-      log.info("omnibox: no Safari profile folder for \(profile, privacy: .public) among \(names.count) in \(profiles.path, privacy: .public)")
-      return nil
-    }
-    return profiles.appendingPathComponent(name).appendingPathComponent("History.db")
+  private static var container: URL {
+    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.apple.Safari/Data/Library/Safari")
   }
 
-  static func readHistory(profile: String) -> [OmniboxPage] {
-    guard let source = databaseURL(profile: profile) else { return [] }
+  // The default profile's database is History.db in ~/Library/Safari; another profile's is in the
+  // container's Profiles/<folder>. The folder is named for the profile's server id in SafariTabs.db,
+  // not for the id Safari gives the extension, which appears in none of Safari's files. So the profile
+  // is found by the folder named for the extension's id if there is one, else by the name the app learned
+  // for it (SafariProfiles.learned) among SafariTabs.db's profiles, else as the only profile there is.
+  static func databaseURL(profile: String) -> URL? {
+    if profile.isEmpty { return library.appendingPathComponent("History.db") }
+    let profiles = container.appendingPathComponent("Profiles")
+    let folders = (try? FileManager.default.contentsOfDirectory(atPath: profiles.path))?.filter {
+      FileManager.default.fileExists(atPath: profiles.appendingPathComponent($0).appendingPathComponent("History.db").path)
+    } ?? []
+    let known = safariProfiles()
+    let name = SafariProfiles.learned[profile]
+    let folder = folders.first { $0.caseInsensitiveCompare(profile) == .orderedSame }
+      ?? name.flatMap { name in known.first { $0.title == name }?.folder }.flatMap { f in folders.first { $0.caseInsensitiveCompare(f) == .orderedSame } }
+      ?? (folders.count == 1 ? folders[0] : nil)
+    guard let folder else {
+      log.info("omnibox: no History.db for Safari profile \(profile, privacy: .public) (\(name ?? "name not learned", privacy: .public)) among \(folders.count) profile folders")
+      return nil
+    }
+    return profiles.appendingPathComponent(folder).appendingPathComponent("History.db")
+  }
+
+  // Safari's profiles other than the default, by title and the server id their data folder is named for.
+  static func safariProfiles() -> [(title: String, folder: String)] {
+    query(copyOf: container.appendingPathComponent("SafariTabs.db"),
+          sql: "SELECT title, server_id FROM bookmarks WHERE type = 1 AND subtype = 2 AND server_id IS NOT NULL AND external_uuid != 'DefaultProfile'") { row in
+      guard let title = text(row, 0), let folder = text(row, 1) else { return nil }
+      return (title, folder)
+    }
+  }
+
+  // Rows from a copy of a database Safari holds open (with its write-ahead log), or none.
+  static func text(_ row: OpaquePointer?, _ column: Int32) -> String? { sqlite3_column_text(row, column).map { String(cString: $0) } }
+
+  static func query<T>(copyOf source: URL, sql: String, bind: ((OpaquePointer?) -> Void)? = nil, _ map: (OpaquePointer?) -> T?) -> [T] {
     let fm = FileManager.default
-    let folder = fm.temporaryDirectory.appendingPathComponent("omnibox-safari-\(profile.isEmpty ? "default" : profile)")
-    try? fm.removeItem(at: folder)
+    let folder = fm.temporaryDirectory.appendingPathComponent("omnibox-" + UUID().uuidString)
+    defer { try? fm.removeItem(at: folder) }
     do {
       try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-      for suffix in ["", "-wal", "-shm"] {
-        let from = URL(fileURLWithPath: source.path + suffix)
-        if fm.fileExists(atPath: from.path) { try fm.copyItem(at: from, to: folder.appendingPathComponent("History.db" + suffix)) }
+      for suffix in ["", "-wal", "-shm"] where fm.fileExists(atPath: source.path + suffix) {
+        try fm.copyItem(atPath: source.path + suffix, toPath: folder.appendingPathComponent(source.lastPathComponent + suffix).path)
       }
     } catch {
       log.error("omnibox: could not copy \(source.path, privacy: .public): \(error.localizedDescription, privacy: .public) (Full Disk Access?)")
       return []
     }
-    defer { try? fm.removeItem(at: folder) }
     var db: OpaquePointer?
-    guard sqlite3_open_v2(folder.appendingPathComponent("History.db").path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { return [] }
+    guard sqlite3_open_v2(folder.appendingPathComponent(source.lastPathComponent).path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { return [] }
     defer { sqlite3_close(db) }
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+      log.error("omnibox: query on \(source.lastPathComponent, privacy: .public) failed: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
+      return []
+    }
+    defer { sqlite3_finalize(statement) }
+    bind?(statement)
+    var rows: [T] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      if let row = map(statement) { rows.append(row) }
+    }
+    return rows
+  }
+
+  static func readHistory(profile: String) -> [OmniboxPage] {
+    guard let source = databaseURL(profile: profile) else { return [] }
     // A visit's title is the page's at that visit; MAX picks the latest visit's row, title included.
     let sql = """
       SELECT i.url, v.title, i.visit_count, MAX(v.visit_time) FROM history_items i
@@ -433,21 +473,13 @@ enum SafariHistory {
       WHERE v.visit_time > ? AND (i.url LIKE 'http://%' OR i.url LIKE 'https://%')
       GROUP BY i.id ORDER BY MAX(v.visit_time) DESC LIMIT 5000
       """
-    var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-      log.error("omnibox: Safari history query failed: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
-      return []
+    let since = Date().addingTimeInterval(-90 * 86400).timeIntervalSinceReferenceDate
+    let pages: [OmniboxPage] = query(copyOf: source, sql: sql, bind: { sqlite3_bind_double($0, 1, since) }) { row in
+      guard let url = text(row, 0) else { return nil }
+      return OmniboxPage(url: url, title: text(row, 1) ?? "", visits: Int(sqlite3_column_int(row, 2)), typed: 0,
+                         last: Date(timeIntervalSinceReferenceDate: sqlite3_column_double(row, 3)), bookmarked: false)
     }
-    defer { sqlite3_finalize(statement) }
-    sqlite3_bind_double(statement, 1, Date().addingTimeInterval(-90 * 86400).timeIntervalSinceReferenceDate)
-    var pages: [OmniboxPage] = []
-    while sqlite3_step(statement) == SQLITE_ROW {
-      guard let url = sqlite3_column_text(statement, 0).map({ String(cString: $0) }) else { continue }
-      let title = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
-      pages.append(OmniboxPage(url: url, title: title, visits: Int(sqlite3_column_int(statement, 2)), typed: 0,
-                               last: Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 3)), bookmarked: false))
-    }
-    log.info("omnibox: \(pages.count) Safari history pages for \(profile.isEmpty ? "the default profile" : profile, privacy: .public)")
+    log.info("omnibox: \(pages.count) Safari history pages for \(profile.isEmpty ? "the default profile" : profile, privacy: .public) from \(source.deletingLastPathComponent().lastPathComponent, privacy: .public)")
     return pages
   }
 

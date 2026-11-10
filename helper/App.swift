@@ -54,6 +54,9 @@ final class App: NSObject, NSApplicationDelegate {
   let profiles = Profiles()
   let tap = Tap()
   let tracker = WindowTracker()
+  let omnibox = OmniboxController()
+  var omniboxConnection: Connection?
+  var omniboxRequest = 0
   var server: SocketServer?
   var safariServer: SocketServer?
   var safariSockets: [ObjectIdentifier: LineSocket] = [:] // the app extension's open sockets
@@ -116,10 +119,14 @@ final class App: NSObject, NSApplicationDelegate {
       self?.tracker.fast = down
     }
     tap.onCommandL = { [weak self] in
-      guard let self, let front = minis.frontWindow else { return false }
+      guard let self else { return false }
+      guard let front = minis.frontWindow else { return openOmnibox(newTab: false) }
       minis.showAddress(front.id)
       return true
     }
+    tap.onCommandT = { [weak self] in self?.openOmnibox(newTab: true) ?? false }
+    tap.omniboxShown = { [weak self] in self?.omnibox.isVisible ?? false }
+    setUpOmnibox()
     tap.onNewMiniBrowser = { [weak self] in
       guard let self, let front = frontConnection else { return false }
       send(["miniNew": true], to: front)
@@ -174,6 +181,111 @@ final class App: NSObject, NSApplicationDelegate {
     if Browser.current == .chrome {
       if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
     }
+  }
+
+  // ⌘L and ⌘T in the browser in front (Omnibox.swift): for the profile whose window is in front, when
+  // its extension is connected and the setting is on; otherwise the keys go to the browser.
+  func openOmnibox(newTab: Bool, connection given: Connection? = nil, display: Bool = true) -> Bool {
+    guard UserDefaults.standard.object(forKey: "omnibox") as? Bool ?? true, let connection = given ?? frontConnection else {
+      log.info("omnibox: \(newTab ? "⌘T" : "⌘L", privacy: .public) left to the browser: no connection for the front window")
+      return false
+    }
+    let browser: Browser = connection.safari != nil ? .safari : .chrome
+    log.info("omnibox: \(newTab ? "⌘T" : "⌘L", privacy: .public) in \(browser.name, privacy: .public), \(connection.profile ?? connection.safari?.label ?? "unnamed profile", privacy: .public)")
+    omniboxConnection = connection
+    omniboxRequest += 1
+    if display { omnibox.show(newTab: newTab, browser: browser, over: Chrome.frontWindowFrame) } else { omnibox.model.reset(newTab: newTab, browser: browser) }
+    send(["omnibox": ["op": "data", "id": omniboxRequest]], to: connection)
+    if let safari = connection.safari {
+      SafariHistory.load(profile: safari.profile) { [weak self, weak connection] pages in
+        guard let self, let connection, omniboxConnection === connection else { return }
+        omnibox.model.pages = pages
+        omnibox.model.dataArrived()
+      }
+    }
+    return true
+  }
+
+  func setUpOmnibox() {
+    let model = omnibox.model
+    model.onDismiss = { [weak self] in self?.omnibox.hide() }
+    model.onGo = { [weak self] go in
+      guard let self else { return }
+      log.info("omnibox: go \(go.keys.sorted().joined(separator: ","), privacy: .public)")
+      send(["omnibox": go.merging(["op": "go"]) { a, _ in a }], to: omniboxConnection)
+      omnibox.hide()
+    }
+    model.onSuggest = { [weak model] text in Omnibox.suggest(text) { model?.receive(suggestions: $0, for: text) } }
+    model.onNeedIcons = { [weak self, weak model] pages in
+      guard let self, let connection = omniboxConnection else { return }
+      if connection.safari != nil {
+        Omnibox.googleFavicons(pages) { page, image in model?.icons[page] = image }
+      } else {
+        send(["omnibox": ["op": "favicons", "id": omniboxRequest, "urls": pages]], to: connection)
+      }
+    }
+  }
+
+  // --omnibox: the box's model for a profile of the given browser, fed and typed into without showing
+  // the panel, its rows logged. The panel is left alone, since it would take the keyboard from whatever
+  // is in front.
+  func testOmnibox(_ test: [String: Any]) {
+    let safari = test["browser"] as? String == "safari"
+    // Browsers' connections only: they have reported tabs. (This command's own socket is a connection too.)
+    let candidates = allConnections.filter { ($0.safari != nil) == safari && (!$0.tabs.isEmpty || $0.front != nil) }
+    let wanted = (test["profile"] as? String ?? "").lowercased()
+    if wanted == "@all" {
+      for (i, c) in candidates.enumerated() {
+        log.info("omnibox test: asking connection \(i): \(c.profile ?? "unnamed", privacy: .public) in \(c.browser ?? "?", privacy: .public), \(c.tabs.count) tabs")
+        send(["omnibox": ["op": "data", "id": -1 - i]], to: c)
+      }
+      return
+    }
+    let named = wanted == "@last" ? candidates.last : wanted.isEmpty ? nil : candidates.first { ($0.safari?.profile ?? $0.profile ?? "").lowercased().hasPrefix(wanted) || ($0.profile ?? "").lowercased().hasPrefix(wanted) }
+    guard let connection = named ?? candidates.first(where: { $0.profile != nil }) ?? candidates.first else { return log.info("omnibox test: no \(safari ? "Safari" : "Chrome", privacy: .public) connection") }
+    let show = test["show"] as? Bool ?? false
+    _ = openOmnibox(newTab: test["newTab"] as? Bool ?? true, connection: connection, display: show)
+    let query = test["query"] as? String ?? ""
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+      let model = omnibox.model
+      if show { omnibox.field.typeForTest(query) } else { model.update(query: query, allowCompletion: true) }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+        log.info("omnibox test: \(model.pages.count) pages, \(model.tabs.count) tabs, current \(model.current?.url ?? "none", privacy: .public)")
+        log.info("omnibox test: \(query, privacy: .public)[\(model.completion, privacy: .public)]")
+        if show, let editor = omnibox.field.currentEditor() {
+          log.info("omnibox test: field \(editor.string, privacy: .public), selected \(NSStringFromRange(editor.selectedRange), privacy: .public), panel key \(self.omnibox.isKey)")
+        }
+        for (i, row) in model.rows.enumerated() {
+          log.info("omnibox test: \(i) \(row.id, privacy: .public) | \(row.title, privacy: .public) | \(row.detail ?? "", privacy: .public) | icon \(row.page.map { model.icons[$0] != nil } ?? false)")
+        }
+        if test["commit"] as? Bool == true { model.commit() } // Return on the top row
+      }
+    }
+  }
+
+  func receiveOmnibox(_ data: [String: Any], from connection: Connection) {
+    guard connection === omniboxConnection, data["id"] as? Int == omniboxRequest else {
+      return log.info("omnibox: dropped data for request \(data["id"] as? Int ?? -1) (current \(self.omniboxRequest)), \(connection === self.omniboxConnection ? "same" : "another", privacy: .public) connection")
+    }
+    let model = omnibox.model
+    if connection.safari == nil {
+      let history = (data["history"] as? [[String: Any]] ?? []).compactMap { h -> OmniboxPage? in
+        guard let url = h["url"] as? String else { return nil }
+        return OmniboxPage(url: url, title: h["title"] as? String ?? "", visits: h["visits"] as? Int ?? 0, typed: h["typed"] as? Int ?? 0,
+                           last: Date(timeIntervalSince1970: (h["last"] as? Double ?? 0) / 1000), bookmarked: false)
+      }
+      let bookmarks = (data["bookmarks"] as? [[String: Any]] ?? []).compactMap { b in (b["url"] as? String).map { ($0, b["title"] as? String ?? "") } }
+      model.pages = Omnibox.merge(history: history, bookmarks: bookmarks)
+      log.info("omnibox: \(history.count) history pages, \(bookmarks.count) bookmarks")
+    }
+    let tab = { (t: [String: Any]) -> OmniboxTab? in
+      guard let id = t["id"] as? Int, let url = t["url"] as? String else { return nil }
+      return OmniboxTab(id: id, url: url, title: t["title"] as? String ?? "")
+    }
+    model.tabs = (data["tabs"] as? [[String: Any]] ?? []).compactMap(tab)
+    model.current = (data["current"] as? [String: Any]).flatMap(tab)
+    model.dataArrived()
+    if let url = model.current?.url { omnibox.showCurrent(url) }
   }
 
   func drop(_ connection: Connection) {
@@ -365,14 +477,19 @@ final class App: NSObject, NSApplicationDelegate {
       var list: AnyObject?
       guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXWindowsAttribute as CFString, &list) == .success,
             let windows = list as? [AXUIElement] else { continue }
-      for window in windows {
+      // A frame says which window only when no other window has it: two maximized windows of two
+      // profiles share one, and a frame match there named the other profile's connection.
+      let frames = windows.map(Chrome.axFrame)
+      for (index, window) in windows.enumerated() {
         guard let full = Chrome.axTitle(window) else { continue }
         let (tab, profile) = Chrome.split(title: full)
         guard !profile.isEmpty, connection(profile: profile, browser: browser) == nil else { continue }
-        let frame = Chrome.axFrame(window)
-        let candidates = connections.filter { c in
-          guard c.profile == nil, let front = c.front else { return false }
-          return front.title == tab || frame.map { Chrome.match(front.frame, in: [Chrome.Window(id: 0, frame: $0)]) != nil } ?? false
+        let frame = frames[index]
+        let frameIsUnique = frame.map { f in frames.enumerated().allSatisfy { $0.offset == index || $0.element.map { Chrome.match(f, in: [Chrome.Window(id: 0, frame: $0)]) == nil } ?? true } } ?? false
+        let unnamed = connections.filter { $0.profile == nil && $0.front != nil }
+        let byTitle = unnamed.filter { $0.front?.title == tab }
+        let candidates = !byTitle.isEmpty || !frameIsUnique ? byTitle : unnamed.filter { c in
+          frame.map { Chrome.match(c.front!.frame, in: [Chrome.Window(id: 0, frame: $0)]) != nil } ?? false
         }
         if candidates.count == 1 {
           candidates[0].profile = profile
@@ -460,7 +577,13 @@ final class App: NSObject, NSApplicationDelegate {
       minis.shortcuts = shortcuts
     }
     if let menu = message["miniMenu"] as? Int { minis.showMenu(menu) }
+    if let data = message["omniboxData"] as? [String: Any] { receiveOmnibox(data, from: connection) }
+    if let favicons = message["omniboxFavicons"] as? [String: Any], connection === omniboxConnection, let icons = favicons["icons"] as? [String: Any] {
+      for (page, data) in icons { if let icon = image(data as? String) { omnibox.model.icons[page] = icon } }
+    }
     if message["settings"] != nil { SettingsWindow.shared.show() } // --settings, over the socket
+    if let test = message["omniboxTest"] as? [String: Any] { testOmnibox(test) } // --omnibox, over the socket
+    if let path = message["omniboxSnapshot"] as? String { omnibox.snapshot(to: path) } // --omnibox-snapshot
     if message.keys.contains("player") {
       let state = (message["player"] as? [String: Any]).flatMap { try? JSONSerialization.data(withJSONObject: $0) }
         .flatMap { try? JSONDecoder().decode(PlayerState.self, from: $0) }

@@ -3,7 +3,8 @@
 // same tap sees what an extension can't without a script in every page: a scroll (the tab in front
 // has changed, for its thumbnail), an ⌥⌘-click (a link to open as a mini browser: it becomes a ⌘-click,
 // which Chrome opens as a background tab, and the extension is told that tab is a mini browser), and ⌘L
-// in a mini browser (its address field is the helper's), and the mini browser shortcuts themselves: ⌥⇧N
+// in a mini browser (its address field is the helper's), ⌘L and ⌘T elsewhere (the helper's address box,
+// Omnibox.swift), and the mini browser shortcuts themselves: ⌥⇧N
 // from any app for a new one, ⌘O and ⇧⌘O in one to open it in Chrome or pick where. Chrome can't
 // pre-set those for the extension (a manifest suggests at most four keys and none global), so the
 // helper takes them when it's connected and the extension's own shortcuts are the fallback. ⌃⌥→, ⌃⌥←
@@ -26,6 +27,8 @@ final class Tap {
   var onAltCommandClick: () -> Void = {}
   var onMouse: (Bool) -> Void = { _ in } // the button went down (true) or up
   var onCommandL: () -> Bool = { false } // true: taken
+  var onCommandT: () -> Bool = { false }
+  var omniboxShown: () -> Bool = { false } // while it is, keys go to it untouched
   var onNewMiniBrowser: () -> Bool = { false } // ⌥⇧N from any app
   var onMiniBrowserOpen: (Bool) -> Bool = { _ in false } // ⌘O (false) or ⇧⌘O (true) in a mini browser
   var onProfile: (Int, Int?) -> Void = { _, _ in } // ⌃⌥→ (+1) / ⌃⌥← (-1), or ⌃⌥1…9 as an index
@@ -96,7 +99,7 @@ final class Tap {
     let typed = Keyboard.character(key)
     // ⌥⇧N anywhere: a new mini browser, the one shortcut that has to work from other apps.
     if typed == "n" && option && shift && !command && !control && onNewMiniBrowser() { return nil }
-    guard Chrome.isFrontmost else { return pass }
+    guard Chrome.isFrontmost, !omniboxShown() else { return pass }
     // ⌃⌥ with an arrow or a digit: profiles.
     // Off in Settings for window managers (Rectangle) that use ⌃⌥ arrows and digits themselves.
     if control && option && !command && !shift && UserDefaults.standard.object(forKey: "profileHotkeys") as? Bool ?? true {
@@ -109,6 +112,7 @@ final class Tap {
       return nil
     }
     if typed == "l" && command && !control && !option && !shift && onCommandL() { return nil }
+    if typed == "t" && command && !control && !option && !shift && onCommandT() { return nil }
     if typed == "o" && command && !control && !option && onMiniBrowserOpen(shift) { return nil }
     guard key == Tap.tab, control, !flags.contains(.maskCommand), !flags.contains(.maskAlternate) else { return pass }
     log.info("ctrl-tab: shift=\(shift, privacy: .public) switcher=\(self.useSwitcher(), privacy: .public)")

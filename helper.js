@@ -88,6 +88,7 @@ function helperMessage(raw) {
   else if (msg.miniNext) miniNextUntil = Date.now() + 1500;
   else if (msg.resend) helperHello(); // the app restarted under a host that stayed up
   else if (msg.focusFront) focusFront().catch(console.error); // Safari: the app switched to this profile
+  else if (msg.omnibox) omniboxFromHelper(msg.omnibox).catch(console.error);
 }
 
 // This profile's last focused normal window to the front: how the app switches to a Safari profile

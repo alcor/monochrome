@@ -80,7 +80,7 @@ git clone https://github.com/arfct/monochrome.git ~/Code/monochrome
 cd ~/Code/monochrome && make install
 ```
 
-Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension from it. `make install` builds the Release configuration into `build/`, replaces `~/Applications/Monochrome.app` and opens it; from there the app installs itself as in step 2 above. Re-running is safe. `make run` opens the build as it is with `--portable`, which registers the host only: no login item, Dock tile, App Shortcuts or default-browser question. `Monochrome --register-host` writes the host registration and quits.
+Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension from it. `make install` builds the Release configuration into `build/`, makes `~/Applications/Monochrome.app` a symlink to it (a copy would be a second Safari extension, and Safari refuses one of the two) and opens it; from there the app installs itself as in step 2 above. Re-running is safe. `make run` opens the build as it is with `--portable`, which registers the host only: no login item, Dock tile, App Shortcuts or default-browser question. `Monochrome --register-host` writes the host registration and quits.
 
 The Safari extension target's run script copies the same files into the app extension's Resources, with `manifest.json` written by `store/safari-manifest.py` (no `key`, `minimum_chrome_version`, or `tabGroups`, `search` and `favicon` permissions). The app's run script copies the extension's files (`store/files`) into the app's `Contents/Resources/extension`, makes `host.sh` executable, and writes the extension IDs the app registers its host for to `Contents/Resources/extension-ids.json`: the unpacked one, derived from the manifest key, and the store's from `store/id`. Sparkle comes in as a Swift package. `helper/Info.plist` is generated from `project.yml` and ignored by git.
 
@@ -96,6 +96,7 @@ The Safari extension target's run script copies the same files into the app exte
 | ⌥⇧N, from any app | New mini browser | app; extension command as fallback |
 | ⌥⌘-click | Open the link in a mini browser | app only |
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
+| ⌘L, ⌘T | The address box: edit the front tab's address, or open a new tab. ⌥Return does the other. Turn off in Settings → General | app; the browser's own when off or not connected |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | Esc, in a mini browser | Close it | extension |
 | ⌃⌥→, ⌃⌥← | Next, previous Chrome profile (Safari profile on Safari). On by default; turn off in Settings → General if Rectangle or another window manager uses them | app |
@@ -173,6 +174,22 @@ When a music tab has a track loaded and another tab is in front, a panel at the 
 
 The panel is the app's (`helper/Player.swift`), because an extension cannot draw in the tab strip. It covers the last tabs of a long list and trails the window during a drag.
 
+## ⌘L and ⌘T open an address box in Quicksilver's style
+
+In Chrome and Safari, ⌘L and ⌘T open the app's address box over the front window in place of the browser's address bar, as Arc's command bar does: ⌘L with the front tab's address selected, ⌘T empty with the most used sites under it. It is the lower half of Quicksilver's panel (`apple/Quicksilver/Sources/CommandView.swift` in the alchemy repository), with its measurements: a 72-point capsule of clear glass with the label scrim, and 62-point rows with 48-point favicon tiles and one selection fill that slides between them (`helper/OmniboxView.swift`).
+
+What it lists comes from the profile whose window is in front (`helper/Omnibox.swift`):
+
+- Inline completion, in gray after what is typed: the most used host the typing starts, or with a slash, the most used page whose address it starts, once it has been typed, bookmarked or visited twice. Tab, → or End takes it; deleting it does not bring it straight back.
+- What was typed, as an address (the mini browser's rules: a scheme, or a dot before a two-letter ending, localhost or an IP address) or as a search.
+- Open tabs that match, as Switch to tab.
+- History and bookmarks: every word in the title or the address, ranked by where they match (the start of the address, then the start of a word in the title, then anywhere) and by visits, typed visits and how recent, from the last 90 days, up to 5000 pages.
+- Google's search suggestions, queries and sites, as Chrome's address bar gets them. What is typed goes to Google as it is typed.
+
+On Chrome the extension sends the history, bookmarks, tabs and favicons (`omnibox.js`; the `history` and `bookmarks` permissions) and searches with Chrome's default search engine. Safari gives extensions none of these: the app reads the profile's `History.db` and the shared `Bookmarks.plist` from `~/Library/Safari`, which needs Full Disk Access for Monochrome, takes favicons from Google's favicon service, and searches Google. Without a connected extension in the front profile, or with the setting off, the keys go to the browser.
+
+`Monochrome --demo-omnibox out.png [dark]` draws the box on sample history into a PNG; `Monochrome --omnibox chrome|safari <text>` types into the running app's box for a connected profile without showing it and logs the rows.
+
 ## The address bar opens the matching page from history
 
 Typing words and pressing Enter opens the history entry that matches them rather than a search. Chrome allows this only with `--enable-features=OmniboxForceAllowedToBeDefault`, which is not on `chrome://flags`, so the app passes it when it starts Chrome. A search made before for the same words can still outrank the page. The flag list is `features` in `helper/Chrome.swift`; a change takes effect after a rebuild and a restart of Chrome from the Dock.
@@ -217,7 +234,7 @@ The suite drives headless Chromium with the extension loaded. With the app built
 
 ## Not verified
 
-I am an automated contributor, and this is what I did not exercise by hand: the app's install at launch on a Mac (Dock tile, App Shortcuts, default-browser question, removal of earlier versions; the host registration is covered by the tests); two profiles connected to the app at once; dragging a peek browser with its shade; a profile switch by hotkey beyond reading the menu; a rule with a `profile` destination for a profile that is not running; whether every app's open event names the sender; whether Chrome matches the ⌃. and ⌃, fallback commands by typed character or by key position on Dvorak; and whether reading Chrome's menu bar and window titles over Accessibility changes Chrome's own accessibility mode.
+I am an automated contributor, and this is what I did not exercise by hand: the app's install at launch on a Mac (Dock tile, App Shortcuts, default-browser question, removal of earlier versions; the host registration is covered by the tests); two profiles connected to the app at once; dragging a peek browser with its shade; a profile switch by hotkey beyond reading the menu; a rule with a `profile` destination for a profile that is not running; whether every app's open event names the sender; the address box in a Chrome profile with more than 5000 history pages in 90 days; whether Chrome matches the ⌃. and ⌃, fallback commands by typed character or by key position on Dvorak; and whether reading Chrome's menu bar and window titles over Accessibility changes Chrome's own accessibility mode.
 
 ## What would change this design
 

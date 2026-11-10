@@ -1,6 +1,6 @@
 # make project   Monochrome.xcodeproj from project.yml (XcodeGen: brew install xcodegen)
 # make build     Release build into build/
-# make install   build, then replace ~/Applications/Monochrome.app and open it; the app installs the rest
+# make install   build, link ~/Applications/Monochrome.app to it and open it; the app installs the rest
 #                itself at launch (helper/Install.swift)
 # make test      the extension's and host's tests (needs a build for the host ones)
 # make release VERSION=1.1   version into project.yml and manifest.json, a Developer ID build notarized by
@@ -26,23 +26,22 @@ build: project
 
 # By process, not by bundle id: "tell application id ... to quit" resolves the id to the newest bundle,
 # the one just built, and launches that copy to quit it.
-# The build in build/ is unregistered first (xcodebuild registers it): while macOS knows two copies,
-# Safari can keep running the build's app extension and refuse the installed one ("other version in
-# use"), and the Safari extension, finding the app quit, starts the app by bundle id, which can pick
-# the build's copy. A second pkill stops any copy started that way before the new one opens.
+# ~/Applications/Monochrome.app is a symlink to the build, not a copy: xcodebuild registers every app it
+# builds with LaunchServices (Swift Build does it for any macOS app, with no setting to stop it), and
+# while macOS knows two copies of the Safari app extension Safari keeps whichever it took last and
+# refuses the other ("other version in use"), so the app's messages to Safari fail. With the link there
+# is one copy, and the app runs from build/ (its host manifest, login item and Dock tile name that
+# path). A second pkill stops any copy the Safari extension started (by bundle id) in between.
 install: build
-	pluginkit -r "$(APP)/Contents/PlugIns/Monochrome Extension.appex" 2>/dev/null || true
-	$(LSREGISTER) -u "$(APP)" 2>/dev/null || true
+	$(LSREGISTER) -u "$(INSTALLED)" 2>/dev/null || true
 	pkill -x Monochrome 2>/dev/null || true
 	sleep 0.5
 	mkdir -p "$(HOME)/Applications"
 	rm -rf "$(INSTALLED)"
-	ditto "$(APP)" "$(INSTALLED)"
-	$(LSREGISTER) -f "$(INSTALLED)"
+	ln -s "$(CURDIR)/$(APP)" "$(INSTALLED)"
 	pkill -x Monochrome 2>/dev/null || true
-	sleep 0.5
 	open "$(INSTALLED)"
-	@echo "installed: $(INSTALLED) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
+	@echo "installed: $(INSTALLED) -> $(CURDIR)/$(APP) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
 
 # The build as it is, registering the host only: no login item, Dock tile, default browser or App Shortcuts.
 run: build
@@ -68,6 +67,10 @@ release:
 	until xcodebuild -exportNotarizedApp -archivePath "$(ARCHIVE)" -exportPath $(DERIVED)/notarized \
 	    -allowProvisioningUpdates >/dev/null 2>&1; do sleep 15; done
 	xcrun stapler validate "$(NOTARIZED)"
+	# The archive's and the export's copies are registered too; see install for why only one may be.
+	for app in "$(ARCHIVE)/Products/Applications/Monochrome.app" "$(DERIVED)/upload/Monochrome.app" "$(NOTARIZED)" \
+	    "$(DERIVED)/Build/Intermediates.noindex/ArchiveIntermediates/Monochrome/InstallationBuildProductsLocation/Applications/Monochrome.app"; do \
+	  $(LSREGISTER) -u "$$PWD/$$app" 2>/dev/null || true; done
 	spctl --assess --type execute "$(NOTARIZED)"
 	mkdir -p dist
 	rm -f dist/Monochrome-app-$(VERSION).zip

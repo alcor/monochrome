@@ -314,7 +314,7 @@ chrome.windows.onFocusChanged.addListener(async windowId => {
   if (tab) activated(tab.id);
 });
 
-importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js');
+importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js', 'omnibox.js');
 
 chrome.action.onClicked.addListener(reset);
 

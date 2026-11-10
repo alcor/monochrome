@@ -8,6 +8,7 @@ mini-browser.js
 mini-browser-bar.js
 mini-browser-page.js
 routes.js
+omnibox.js
 player.js
 peek-click.js
 peek-open.js

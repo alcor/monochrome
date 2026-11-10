@@ -1,0 +1,22 @@
+availability: available
+contextSize: 8192
+article: 63 blocks, 13309 characters, 2989 tokens as prompt, 4.45 characters per token
+instructions: 124 tokens; Summary schema: 170 tokens; Points schema: 166 tokens
+single pass: ok in 7.7 s, 5 bullets, 0 with an invalid anchor
+  [1] Pingora, a new HTTP proxy built in Rust, serves over 1 trillion requests a day and requires only a third of the CPU and memory resources of the previous proxy infrastructure.
+  [9] The NGINX worker architecture has operational drawbacks for Cloudflare’s use cases that hurt performance and efficiency, including request-process pinning and poor connection reuse per worker.
+  [13] The NGINX connection pool is per worker, so when scaling with more NGINX workers, the connection reuse ratio gets worse, leading to slower TTFB and more connections to maintain.
+  [47] Pingora consumes about 70% less CPU and 67% less memory in production compared to the old service with the same traffic load, due to more efficient Rust code and multithreading.
+  [30] Pingora uses Rust for its codebase, which allows memory safety without compromising performance, and implements a life of a request event-based programmable interface for developers.
+article twice: ok in 15.8 s, 5 bullets, 0 with an invalid anchor
+  [1] Pingora, a new HTTP proxy built in-house using Rust, serves over 1 trillion requests a day and requires only a third of the CPU and memory resources of the previous proxy infrastructure, as stated in [1].
+  [9] The NGINX worker architecture has operational drawbacks that hurt performance, including request-process pinning and poor connection reuse, as detailed in [9][10][12].
+  [40] Pingora makes only a third as many new connections per second compared to the old service and achieves a 99.92% connection reuse ratio for one major customer, saving 434 years of handshake time every day, as described in [40][41].
+  [29] The Rust language was chosen for Pingora because it can perform like C in a memory-safe way without compromising performance, along with a custom HTTP library to support non-RFC compliant traffic, as explained in [29][30][34].
+  [47] Pingora consumes about 70% less CPU and 67% less memory in production compared to the old service, with efficiency gains from direct string access, shared references, and fewer new connections, as outlined in [47][48][49][50].
+article three times: failed in 1.7 s: Content contains 9282 tokens, which exceeds the maximum allowed context size of 8192.
+map 1/2: blocks 0-35, 1734 tokens, 4.2 s, 3 points, 0 invalid
+map 2/2: blocks 36-62, 1255 tokens, 3.6 s, 3 points, 0 invalid
+reduce: 3.5 s, 5 bullets, 0 with an invalid anchor, 2 with a number not in the anchor block
+map and reduce total: 11.3 s (2 map calls 7.8 s)
+map points with an invalid anchor: 0 of 6

@@ -74,6 +74,8 @@ release:
 	ditto -c -k --sequesterRsrc --keepParent "$(NOTARIZED)" dist/Monochrome-app-$(VERSION).zip
 	"$(SPARKLE_BIN)/generate_appcast" --download-url-prefix "https://github.com/arfct/monochrome/releases/download/v$(VERSION)/" \
 	  --link https://github.com/arfct/monochrome/releases -o appcast.xml dist
+	# generate_appcast gives every zip in dist/ the new release's prefix; each goes back to its own release.
+	python3 -I -c "import re; s = open('appcast.xml').read(); open('appcast.xml', 'w').write(re.sub(r'download/v[^/]+/Monochrome-app-([0-9.]+)\.zip', r'download/v\1/Monochrome-app-\1.zip', s))"
 	@echo
 	@echo "built dist/Monochrome-app-$(VERSION).zip and appcast.xml. To publish:"
 	@echo "  gh release create v$(VERSION) dist/Monochrome-app-$(VERSION).zip --title \"Monochrome $(VERSION)\" --notes \"...\""

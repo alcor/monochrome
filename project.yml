@@ -22,8 +22,8 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
     # The version lives here, not in the plist; `make release VERSION=x.y` rewrites both numbers and the
     # extension manifest's. Sparkle compares CFBundleVersion, so it is the version too.
-    MARKETING_VERSION: "1.1"
-    CURRENT_PROJECT_VERSION: "1.1"
+    MARKETING_VERSION: "1.2"
+    CURRENT_PROJECT_VERSION: "1.2"
 packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle

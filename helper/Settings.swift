@@ -163,6 +163,7 @@ final class GeneralModel: ObservableObject {
 
 struct GeneralSettings: View {
   @ObservedObject var model: GeneralModel
+  @AppStorage("profileHotkeys") private var profileHotkeys = true // read by the tap (Tap.swift)
   private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
   var onCheckForUpdates: () -> Void = {}
@@ -176,6 +177,7 @@ struct GeneralSettings: View {
             ForEach(Browser.allCases) { Text($0.name).tag($0) }
           }
           Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
+          Toggle("Profile hotkeys ⌃⌥← → and ⌃⌥1–9", isOn: $profileHotkeys)
           LabeledContent("Default browser") {
             if model.isDefaultBrowser { Text("Monochrome").foregroundStyle(.secondary) } else { Button("Make Default…", action: model.makeDefault) }
           }
@@ -190,7 +192,7 @@ struct GeneralSettings: View {
         } header: {
           Text("Monochrome")
         } footer: {
-          Text("Browser is the one the shortcuts, panels and links from other apps work with. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu.")
+          Text("Browser is the one the shortcuts, panels and links from other apps work with. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
         }
       }
       Form {

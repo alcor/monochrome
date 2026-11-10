@@ -8,7 +8,7 @@ A plan for the settings window (`helper/Settings.swift`): which tabs it has, whi
 
 The settings window has two tabs and two switches (`profileHotkeys`, `omnibox`). The README describes about thirty features. The plan gives each feature that can be switched a row, so the window is both the list of what Monochrome does and the place to turn a part of it off.
 
-- **Seven tabs:** General, Browser, Tabs, Mini Browsers, Command Bar, Player, Router. 36 controls outside Router, which keeps its rules editor.
+- **Eight tabs:** General, Browser, Profiles, Tabs, Mini Browsers, Command Bar, Player, Router. 36 controls outside Router, which keeps its rules editor.
 - **25 settings keys**, all in the app's defaults. 16 are read by the app alone. 9 are behaviour of the extension, and the app sends those to every connected copy as one `prefs` message.
 - **Every row carries its keys in the label and one descriptive line.** That is settled, below.
 - **The app is the one place settings are edited.** The extension's options page keeps the connection status, the Keyboard Shortcuts button and, only while the app is not connected, the locked group's title.
@@ -88,10 +88,11 @@ It goes to a connection each time that connection says `hello` (which covers a n
 
 ## Tabs and controls
 
-Seven tabs in the toolbar, in this order. Keys go in each row's label, in the README's notation. There is no Keyboard tab: it would list every row a second time, and the README's Shortcuts table is already that list.
+Eight tabs in the toolbar, in this order. Keys go in each row's label, in the README's notation. Every row has an SF Symbol left of its title, and no two rows share one. There is no Keyboard tab: it would list every row a second time, and the README's Shortcuts table is already that list.
 
 - **General** is the app itself and what macOS grants it.
-- **Browser** is what the app sets up around the browser: which one, its profiles and extension, how Chrome starts. It is split from General because together they are 15 controls and a profile list.
+- **Browser** is what the app sets up around the browser: which one, its extension, how Chrome starts. It is split from General because together they are 12 controls.
+- **Profiles** is the connected profiles and the keys that switch between them.
 - **Tabs** is the tab sidebar: locked tabs, tab order, ⌃Tab, and the App Shortcuts, which are all sidebar keys.
 - **Mini Browsers** holds mini and peek browsers, which are the same windows.
 - **Command Bar** is ⌘L and ⌘T.
@@ -110,22 +111,29 @@ Seven tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 | Default browser | S Make Default… | | none | `GeneralModel.makeDefault` | Links from other apps reach Monochrome first |
 | Accessibility | S Open Settings… | | none | `AXIsProcessTrusted` | For ⌃Tab, ⌥⌘-click, ⌘L, ⌘T and the profile hotkeys |
 
-### Browser: 10 controls
+### Browser: 7 controls
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
 | Browser | P Chrome, Safari | Chrome | `browser` | `Browser.current` | Where links from other apps open |
-| Open Chrome when Monochrome starts | T | on | `openBrowserAtLaunch` | `App.applicationDidFinishLaunching` | So Chrome starts at login with its launch flags |
+| Open Chrome with Monochrome | T | on | `openBrowserAtLaunch` | `App.applicationDidFinishLaunching` | So Chrome starts at login with its launch flags |
 | Address bar opens the matching history page | T | on | `launchFlags` | `Chrome.open`, `relaunchWithFlags`, `runningWithFlags`, `warnIfStartedWithoutFlags` | Chrome launch flag; applies when Chrome starts from the Dock |
 | Dock tile | S Add to Dock | placed once | `dockTileFor` | `Install.dockHasTile`, `placeDockTile` | Takes Chrome's tile and starts Chrome with the flags |
-| Install Extension… (Safari Extension Settings…) | B | | none | `GeneralModel.installExtension` | none |
-| Relaunch Chrome… | B, shown when Chrome runs without the flags | | none | `GeneralModel.relaunchChrome` | none |
-| Extension Shortcuts… | B, Chrome only | | none | opens `chrome://extensions/shortcuts` | none |
-| Next and previous profile ⌃⌥→, ⌃⌥← | T | on | `profileArrows` | `Tap.handle` | Off if a window manager uses these keys |
+| Extension: Install Extension… (Safari: Extension Settings…) | B | | none | `GeneralModel.installExtension` | Connects each browser profile to Monochrome |
+| Extension shortcuts: Open… | B, Chrome only | | none | opens `chrome://extensions/shortcuts` | Chrome's own page for the extension's keys |
+| Relaunch Chrome: Relaunch… | B, shown when Chrome runs without the flags | | none | `GeneralModel.relaunchChrome` | Chrome is running without Monochrome's flags |
+
+The Extension section's header carries the warning triangle when Chrome runs without the flags.
+
+### Profiles: 3 controls
+
+| Label | Type | Default | Key | Read by | Description |
+|---|---|---|---|---|---|
+| Step through profiles ⌃⌥→, ⌃⌥← | T | on | `profileArrows` | `Tap.handle` | Off if a window manager uses these keys |
 | Profile by number ⌃⌥1 to ⌃⌥9 | T | on | `profileDigits` | `Tap.handle` | By place in the browser's profile menu |
 | Profile HUD | T | on | `profileHUD` | `Profiles.go` | Shows the profiles for 1.2 seconds on a switch |
 
-The Browser Profiles list (each connected profile with its browser's icon and letter avatar) and its warning triangle move here from General unchanged.
+The Browser Profiles list (each connected profile with its browser's icon and letter avatar) and its warning triangle move here from General. With no profile connected it says to install the extension on Browser.
 
 ### Tabs: 10 controls
 
@@ -157,7 +165,7 @@ Notes on what each does when off:
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
 | New mini browser ⌥⇧N | T | on | `miniHotkey` | `Tap.handle` | From any app: a small window with a search box |
-| ⌥⌘-click opens a link in a mini browser | T | on | `miniClick` | `Tap.handle` | On any page in the browser |
+| ⌥⌘-click opens a mini browser | T | on | `miniClick` | `Tap.handle` | On any page in the browser |
 | Links from other apps open as | P Mini browser, New tab in the front window, Tab already on that site | Mini browser | `routeDefault`, sent | `App.route`; the `start_page` listener in `mini-browser.js` | When no Router rule claims the link |
 | Close when unused for | P Never, 1 hour, 12 hours, 1 day, 1 week | 12 hours | `miniIdleHours`, sent (0 is never) | `archiveMiniBrowsers` in `mini-browser.js` | A mini browser left unfocused closes itself |
 | Peek browsers from locked tabs | T | on | `peek`, sent | `injectPeekCatch` and `tabs.onCreated` in `background.js` | A link from a locked tab opens over the window, shaded |
@@ -231,7 +239,7 @@ These get no row, with the reason:
 
 ## Verification
 
-**`--demo-settings` per tab.** It becomes `--demo-settings [tab] [out.png] [dark]`, where `tab` is `general`, `browser`, `tabs`, `mini`, `command`, `player` or `router`, or its index 0 to 6. With no tab it shows Router, so the command in `store/listing.md` still makes `3-router.jpg`; `--general` goes. With `out.png` the window's content view is drawn into the file from the view itself, as `--demo-omnibox` does, so no screen recording is needed; the toolbar is not part of that view and the sidebar material may not draw. In demo mode `Prefs` uses a scratch defaults suite emptied at start, and the Browser Profiles list shows three sample profiles, so a demo run changes no real setting. One PNG per tab, light, looked at before the PR.
+**`--demo-settings` per tab.** It becomes `--demo-settings [tab] [out.png] [dark]`, where `tab` is `general`, `browser`, `profiles`, `tabs`, `mini`, `command`, `player` or `router`, or its index 0 to 7. With no tab it shows Router, so the command in `store/listing.md` still makes `3-router.jpg`; `--general` goes. With `out.png` the window's content view is drawn into the file from the view itself, as `--demo-omnibox` does, so no screen recording is needed; the toolbar is not part of that view and the sidebar material may not draw. In demo mode `Prefs` uses a scratch defaults suite emptied at start, and the Browser Profiles list shows three sample profiles, so a demo run changes no real setting. One PNG per tab, light, looked at before the PR.
 
 **`npm test` additions**, each driving the service worker as the suite already does:
 

@@ -54,7 +54,7 @@ case "--demo-settings":
   let app = NSApplication.shared
   Prefs.useDemoStore()
   let rest = CommandLine.arguments.dropFirst(2).filter { !$0.hasPrefix("--") }
-  let tab = rest.first { !$0.hasSuffix(".png") && $0 != "dark" }.flatMap(SettingsWindow.tabIndex) ?? SettingsWindow.tabNames.count - 1
+  let tab = rest.first { !$0.hasSuffix(".png") && $0 != "dark" }.flatMap(SettingsWindow.tabIndex) ?? SettingsWindow.tabIndex("router")!
   let out = rest.first { $0.hasSuffix(".png") }
   if out != nil { app.setActivationPolicy(.accessory) }
   let backdrop = out == nil ? showBackdropIfAsked() : nil

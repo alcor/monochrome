@@ -19,7 +19,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let width: CGFloat = 760
   // --demo-settings takes a tab by these names or by index.
-  static let tabNames = ["general", "browser", "tabs", "mini", "command", "player", "router", "profiles"]
+  static let tabNames = ["general", "browser", "profiles", "tabs", "mini", "command", "player", "router"]
   static func tabIndex(_ name: String) -> Int? {
     if let index = Int(name) { return tabNames.indices.contains(index) ? index : nil }
     return tabNames.firstIndex(of: name.lowercased() == "address" ? "command" : name.lowercased())
@@ -65,13 +65,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     // Heights fitted so no tab scrolls, from the --demo-settings pictures.
     let pages: [(NSViewController, String, String, CGFloat)] = [
       (NSHostingController(rootView: GeneralSettings(model: model, updates: automaticUpdates, onCheckForUpdates: check)), "General", "gearshape", 320),
-      (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 320),
+      (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 400),
+      (NSHostingController(rootView: ProfilesSettings(model: model)), "Profiles", "person.2", 400),
       (NSHostingController(rootView: TabsSettings(model: model)), "Tabs", "sidebar.left", 500),
       (NSHostingController(rootView: MiniBrowserSettings()), "Mini Browsers", "macwindow.on.rectangle", 320),
       (NSHostingController(rootView: CommandBarSettings(model: model)), "Command Bar", "magnifyingglass", 290),
       (NSHostingController(rootView: PlayerSettings()), "Player", "music.note", 300),
-      (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500),
-      (NSHostingController(rootView: ProfilesSettings(model: model)), "Profiles", "person.2", 400),
+      (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500), // the rules beside the selected one's fields
     ]
     heights = pages.map(\.3)
     let tabs = SettingsTabController()

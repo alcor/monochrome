@@ -33,11 +33,11 @@ Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chrom
 
 4. **Restart Chrome from the Dock.** Quit Chrome and open it from the Monochrome tile. Only that start carries the launch flags; Chrome started any other way runs without them, and Monochrome posts a notification saying so.
 
-5. **Load the extension** in each Chrome profile: `chrome://extensions` → Developer mode → Load unpacked → this folder, or the copy inside the app: Install Extension… on the settings window's General tab shows a small floating panel with the folder to drag onto that page and the steps, and the panel's button opens the page; it is the same extension (same key, same ID) from the build the app shipped with. The Web Store listing (ID `liabjepobglgnnddhlohohipjjbbdjjo`) is not public yet. The manifest carries a public key, so the unpacked extension's ID is the same from any folder, and the app's host registration names it. After pulling changes, click reload on the extension's card: Chrome does not re-read an unpacked extension on relaunch. The options page opens on install, shows whether the app is connected, and sets the locked group's title.
+5. **Load the extension** in each Chrome profile: `chrome://extensions` → Developer mode → Load unpacked → this folder, or the copy inside the app: Install Extension… on the settings window's Browser tab shows a small floating panel with the folder to drag onto that page and the steps, and the panel's button opens the page; it is the same extension (same key, same ID) from the build the app shipped with. The Web Store listing (ID `liabjepobglgnnddhlohohipjjbbdjjo`) is not public yet. The manifest carries a public key, so the unpacked extension's ID is the same from any folder, and the app's host registration names it. After pulling changes, click reload on the extension's card: Chrome does not re-read an unpacked extension on relaunch. The options page opens on install and shows whether the app is connected; while the app is not, it also sets the locked group's title (with the app, that title is set in Settings → Tabs, and the page has a Monochrome Settings… button).
 
 6. **Chrome settings.** Right-click the tab bar → Show Tabs Vertically. Settings → On startup → Continue where you left off. Optionally `chrome://flags/#browser-initiated-automatic-picture-in-picture` → Enabled, for video that pops out when its tab is left.
 
-7. **Lock tabs.** Pin the tabs that should be locked, and put everyday tabs in a tab group named `CoreCore` (or the title set on the options page).
+7. **Lock tabs.** Pin the tabs that should be locked, and put everyday tabs in a tab group named `CoreCore` (or the title set in Settings → Tabs → Locked group).
 
 8. **Optional, once:** `migrate/arc-to-chrome.sh` merges Arc's last 90 days of history and its form autofill into Chrome, backing up both databases first. It quits and reopens Chrome.
 
@@ -51,13 +51,13 @@ Monochrome.app carries a Safari Web Extension built from the same files (`safari
 2. **Turn the extension on** in Safari → Settings → Extensions → Monochrome. The settings window's Safari Extension Settings… button opens that page.
 3. **Allow it on every website**: in the same page, Edit Websites… → Other Websites → Allow, which Safari also offers as "Always Allow on Every Website". Peek, ⌃Tab thumbnails, switcher favicons and the music hooks need it.
 4. **Pin the tabs that should be locked.**
-5. **Optionally, choose Safari** in Monochrome's settings window: General → Browser → Safari. That setting is where links from other apps open and which browser starts at login; it also writes Safari's App Shortcuts (below).
+5. **Optionally, choose Safari** in Monochrome's settings window: Browser → Browser → Safari. That setting is where links from other apps open and which browser starts at login; it also writes Safari's App Shortcuts (below).
 
 Chrome and Safari can be used at the same time. Both browsers' extensions stay connected, and the event tap, the switcher, the mini browser bar, the peek shade, the profile hotkeys and the mini player follow whichever browser is in front.
 
 Safari differences:
 
-- Only pinned tabs are locked. Safari gives extensions no tab groups, so there is no `CoreCore` group, the options page does not show its title, and a route to a tab group opens a new tab in the front window instead. The Router tab does not offer "Tab group" on Safari.
+- Only pinned tabs are locked. Safari gives extensions no tab groups, so there is no `CoreCore` group, the locked group title has no effect, and a route to a tab group opens a new tab in the front window instead. The Router tab does not offer "Tab group" on Safari.
 - The mini browser's search box searches Google. Safari has no search API and does not tell extensions its search engine.
 - Switcher favicons come from Google's favicon service (`www.google.com/s2/favicons`) by the page's origin. Chrome uses its own favicon cache.
 - Mini browsers are popup windows, as on Chrome. Whether Safari draws them without its toolbar has not been checked.
@@ -90,20 +90,20 @@ The Safari extension target's run script copies the same files into the app exte
 
 | Keys | Effect | Handled by |
 |---|---|---|
-| ⌃Tab, ⌃⇧Tab | Last used tab in this window. Hold ⌃ for the switcher; release to pick; Esc cancels | app; extension commands as fallback |
+| ⌃Tab, ⌃⇧Tab | Last used tab in this window. Hold ⌃ for the switcher; release to pick; Esc cancels. Turn off in Settings → Tabs | app; extension commands as fallback |
 | ⌃R | Reset the current locked tab to its locked URL | extension command |
 | ⌘W, middle-click | Close. A locked tab comes back at its locked URL | Chrome; ⌘W optionally the extension |
-| ⌥⇧N, from any app | New mini browser | app; extension command as fallback |
-| ⌥⌘-click | Open the link in a mini browser | app only |
+| ⌥⇧N, from any app | New mini browser. Turn off in Settings → Mini Browsers | app; extension command as fallback |
+| ⌥⌘-click | Open the link in a mini browser. Turn off in Settings → Mini Browsers | app only |
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
-| ⌘L, ⌘T | The address box: edit the front tab's address, or open a new tab. ⌥Return does the other. Turn off in Settings → General | app; the browser's own when off or not connected |
+| ⌘L, ⌘T | The address box: edit the front tab's address, or open a new tab. ⌥Return does the other. Turn off in Settings → Address Box, each key on its own | app; the browser's own when off or not connected |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
-| Esc, in a mini browser | Close it | extension |
-| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile (Safari profile on Safari). On by default; turn off in Settings → General if Rectangle or another window manager uses them | app |
-| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu (Safari's File → New Window submenu on Safari). Same setting | app |
-| ⌘S | Collapse or show the vertical tab bar | macOS App Shortcut, set by the app |
+| Esc, on a new mini browser's search page | Close it | extension |
+| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile (Safari profile on Safari). On by default; turn off in Settings → Browser if Rectangle or another window manager uses them | app |
+| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu (Safari's File → New Window submenu on Safari). Turn off in Settings → Browser | app |
+| ⌘S | Collapse or show the vertical tab bar. Turn off in Settings → Tabs | macOS App Shortcut, set by the app |
 | ⇧⌘S | Save Page As, moved off ⌘S | macOS App Shortcut, set by the app |
-| ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | macOS App Shortcut, set by the app |
+| ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list. Turn off in Settings → Tabs | macOS App Shortcut, set by the app |
 
 Hotkeys are resolved through the active keyboard layout: ⌥⇧N is the key that types N, on Dvorak as on QWERTY (`helper/Keyboard.swift`).
 
@@ -127,7 +127,7 @@ Without the app connected, the tap rewrites the keys to the extension's commands
 
 ## Mini browsers are Chrome popup windows
 
-A mini browser is a popup window: no tab strip, no sidebar, ⌘[ for back. Size and position are remembered. One left unfocused for 12 hours closes itself.
+A mini browser is a popup window: no tab strip, no sidebar, ⌘[ for back. Each opens at the same size, inset from the screen's edges. One left unfocused for 12 hours closes itself (Settings → Mini Browsers → Close when unused for).
 
 - ⌥⇧N from any app opens one with a search box: a URL, or a search in Chrome's default engine, then Enter.
 - A link from another app opens one. The app is the default browser, so the link reaches it, and it asks the extension to open the window directly. When the extension is not connected, the app hands the link to Chrome, where it shows in the main window briefly before becoming a mini browser.
@@ -199,9 +199,9 @@ Typing words and pressing Enter opens the history entry that matches them rather
 - **The app** (no arguments): installs itself at launch, owns the event tap and every panel, the Dock tile and the default-browser role, and listens on a Unix socket in `~/Library/Application Support/Monochrome`. A click on its Dock tile opens Chrome; a double-click in the Finder, or the ▾ menu of any mini browser's bar, opens the settings window.
 - **The host** (`--host`): what Chrome spawns for the extension's native messaging port. It relays between the port and the app's socket, and pings the extension every 20 seconds so Chrome does not stop the service worker for idleness. Each Chrome profile gets its own host process and connection; the app routes tab actions to the connection that owns the tab and front-window actions to the connection whose front window matches Chrome's.
 - **The Safari extension** (`Contents/PlugIns/Monochrome Extension.appex`): what the extension's native port reaches in Safari. It relays each message to the app over a socket in the app group container, with the Safari profile it came from; the app answers through `SFSafariApplication.dispatchMessage`.
-- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
+- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), `--prefs [--defaults]` (the settings sent to the extension, as JSON), and `--demo`, `--demo-profiles`, `--demo-shade` for the panels over sample data. `--demo-settings [tab] [out.png] [dark]` shows the settings window on a tab (`general`, `browser`, `tabs`, `mini`, `address`, `player`, `router`, or 0 to 6; Router when none) with sample rules and profiles over scratch defaults, so no real setting changes; with `out.png` it draws the tab into that file and quits, no screen recording needed.
 
-The settings window has two tabs: General, in two columns (the browser, Chrome or Safari; login item, default browser, Accessibility, the version with Check for Updates…; Browser Profiles: each connected profile with its browser's icon and a letter avatar, a warning triangle when Chrome runs without its launch flags, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
+The settings window has a row for every feature that can be switched, each with one line saying what it does, on seven tabs: General (open at login, automatic updates, the version with Check for Updates…, default browser, Accessibility), Browser (Chrome or Safari, whether Chrome opens when the app starts, the launch flag, the Dock tile; Browser Profiles: each connected profile with its browser's icon and a letter avatar, a warning triangle and Relaunch Chrome… when Chrome runs without its launch flags, Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions, and Extension Shortcuts…; the profile keys and HUD), Tabs (locked tabs and the locked group's title, new tabs at the top, the two App Shortcuts, ⌃Tab, the switcher panel, its thumbnails, delay and size), Mini Browsers (⌥⇧N, ⌥⌘-click, peek browsers, where links from other apps open when no rule claims them, when an unused one closes), Address Box (⌘L and ⌘T each, Google suggestions, Full Disk Access when Safari is in play), Player (the mini player, stopping the sites' own pop-out, the nine sites) and Router (the rules). Every default is the behaviour before the settings existed. The app keeps them all and sends the extension the nine it obeys (`{"prefs": {…}}` on each connection and on every change), which it stores and uses even before the app starts; without the app the extension runs on the defaults. `docs/settings.md` has the list. While the window is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
 Logs go to the unified log under subsystem `com.artifact.monochrome`:
 
@@ -220,7 +220,7 @@ It removes the app, its login item, Dock tile, settings, support folder and host
 ## Releases and the Web Store
 
 - **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, archives, has Xcode sign the archive with the team's cloud-managed Developer ID certificate and submit it to Apple's notary service, waits for the stapled app, checks it with `spctl`, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
-- **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab, and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `project.yml`, so a release from another Mac needs that key exported from this one. Sparkle 2.10.1 is a Swift package dependency in `project.yml`; `generate_appcast` comes from its checkout under `build/SourcePackages`. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
+- **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab (Check for updates automatically turns the daily check off), and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `project.yml`, so a release from another Mac needs that key exported from this one. Sparkle 2.10.1 is a Swift package dependency in `project.yml`; `generate_appcast` comes from its checkout under `build/SourcePackages`. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
 - **The extension** is packed by `store/pack.sh` into `dist/store/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
 - `store/listing.md` holds the listing text, permission justifications and privacy answers. The listing links Artifact's shared policy at artifact.com/privacy?Monochrome; `docs/privacy.md` is the detailed statement. `store/screenshots/` holds the switcher, profile HUD and Router tab from `--demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, and the promo tiles from `swift store/tiles.swift`, all JPEG.
 

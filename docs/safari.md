@@ -15,7 +15,7 @@ About two thirds of the extension maps onto Safari's web extension API as writte
 Feature, the APIs it uses, and the Safari status.
 
 1. **Locked tabs, pinned.** `tabs.pinned`, `tabs.create({pinned})`, `tabs.onRemoved`, `tabs.onUpdated`, `storage.session`: all supported (Safari 14, `storage.session` 16.4). Built as on Chrome. Safari shows pinned tabs in every window, where Chrome pins per window; how the API reports that (one tab ID per window or one shared) is **unmeasured**, and the restore-by-position logic in `background.js` depends on it.
-2. **Locked tabs, `CoreCore` group.** `tabGroups.*`, `tabs.group`, `tabs.ungroup`, `Tab.groupId`: not supported. Built: every group call is behind `HAS_GROUPS` (`!!chrome.tabGroups`), so on Safari only pinned tabs lock and the options page hides the group's title.
+2. **Locked tabs, `CoreCore` group.** `tabGroups.*`, `tabs.group`, `tabs.ungroup`, `Tab.groupId`: not supported. Built: every group call is behind `HAS_GROUPS` (`!!chrome.tabGroups`), so on Safari only pinned tabs lock and the options page hides the group's title (set in the app's Settings → Tabs, where it has no effect on Safari).
 3. **New tabs at the top.** `tabs.move`: Safari 27. `Tab.openerTabId`: Safari 14. Carries over unchanged; **unmeasured**.
 4. **⌃Tab by recent use.** `tabs.onActivated`, `windows.onFocusChanged`: supported. `Tab.lastAccessed`: not supported; built so restored tabs keep the query's order until visited. Thumbnails: `tabs.captureVisibleTab`, Safari 14, needs host access to the page.
 5. **Switcher favicons.** `/_favicon/` and `Tab.favIconUrl`: not in Safari. Built: where the manifest has no `favicon` permission (the Safari manifest), `helper.js` fetches Google's favicon service, `https://www.google.com/s2/favicons?domain_url=<origin>&sz=32`. Chrome keeps its own `/_favicon/` cache. The fetch needs host access to google.com, which "Always Allow on Every Website" gives.
@@ -81,7 +81,7 @@ The person enables the extension in Safari Settings → Extensions. Whether `mak
 
 Answered:
 
-1. One app for both browsers, with a browser setting. Decided: one app. Built as the Browser setting on the General tab.
+1. One app for both browsers, with a browser setting. Decided: one app. Built as the Browser setting on the Browser tab.
 2. A replacement for the locked group. Decided: pinned tabs only. `CoreCore` and `group` route destinations are Chrome only and are skipped on Safari.
 3. The mini browser's search engine. Decided: Google, with no setting, because Safari has no search API.
 4. If phase 0 shows popup windows keep Safari's toolbar: ship mini browsers as small normal windows, or drop them on Safari. Still open. Mini browsers stay `windows.create({type: 'popup'})` until the popup's look is measured.

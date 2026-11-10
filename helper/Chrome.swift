@@ -81,20 +81,23 @@ enum Chrome {
   // cleared when any other app is.
   private(set) static var frontBrowser: Browser?
   static var onBrowserChange: () -> Void = {}
+  // IMPORTANT: the first state is not a change. onBrowserChange reads Browser.active, which waits on
+  // this initializer: calling it from here traps (dispatch_once re-entered), which 1.2 did at launch
+  // whenever the browser in front was not the Browser setting.
   static let watchFront: Void = {
-    activated(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    activated(NSWorkspace.shared.frontmostApplication?.bundleIdentifier, notify: false)
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
-      activated((note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier)
+      activated((note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier, notify: true)
     }
   }()
-  // Reads frontBrowser directly, not Browser.active: this runs inside watchFront's initializer.
-  private static func activated(_ bundleId: String?) {
+  // Reads frontBrowser directly, not Browser.active, for the same reason.
+  private static func activated(_ bundleId: String?, notify: Bool) {
     frontmost = bundleId
     let before = frontBrowser ?? Browser.current
     if bundleId == Safari.bundleId { frontBrowser = .safari }
     else if chromeVariants.contains(where: { $0.bundleId == bundleId }) { frontBrowser = .chrome }
     else if bundleId != Bundle.main.bundleIdentifier { frontBrowser = nil }
-    if frontBrowser ?? Browser.current != before { onBrowserChange() }
+    if notify && frontBrowser ?? Browser.current != before { onBrowserChange() }
   }
 
   // Launches with the flags, or hands URLs to the running one (which opens them as tabs: the extension

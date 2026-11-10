@@ -4,6 +4,19 @@
         <title>Monochrome</title>
         <link>https://github.com/arfct/monochrome/releases</link>
         <item>
+            <title>1.2.1</title>
+            <pubDate>Tue, 10 Nov 2026 08:46:14 -0800</pubDate>
+            <link>https://github.com/arfct/monochrome/releases</link>
+            <sparkle:version>1.2.1</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.2.1/Monochrome-app-1.2.1.zip" length="4063628" type="application/octet-stream" sparkle:edSignature="I/tSYbKUYYclXZNAfR6jEW7GtVZAKXSPu3FQbS7qplhzR9j/rtIes15Z+/7JlICLqB1UUOROZnfCx+iy/ggZAw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.2.1/Monochrome1.2.1-1.2.delta" sparkle:deltaFrom="1.2" length="27650" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="974464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="fSFa9B3klW9EFoYhc6sltSgwL88GjmacG0iLCaDRyMyzbwXzto9FR79b+JgQI3dVSIibNFA43MA1qOYib5VeBA=="/>
+                <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.2.1/Monochrome1.2.1-1.1.delta" sparkle:deltaFrom="1.1" length="322478" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="974464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="cAgxy/S5eoEzVIzitcInt5EWOUhSAk0ecZ5IpST1QGFR+Tj1K2QSeiKQnh5/DCIpgOWZOtXnSRvMX5GGAJA4CQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.2</title>
             <pubDate>Mon, 09 Nov 2026 23:29:47 -0800</pubDate>
             <link>https://github.com/arfct/monochrome/releases</link>

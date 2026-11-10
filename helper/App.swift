@@ -187,7 +187,7 @@ final class App: NSObject, NSApplicationDelegate {
   }
 
   // ⌘L and ⌘T in the browser in front (Omnibox.swift): for the profile whose window is in front, when
-  // its extension is connected and the key's setting (Settings → Address Box) is on; otherwise the keys
+  // its extension is connected and the key's setting (Settings → Command Bar) is on; otherwise the keys
   // go to the browser.
   func openOmnibox(newTab: Bool, connection given: Connection? = nil, display: Bool = true) -> Bool {
     guard given != nil || (newTab ? Prefs.omniboxT : Prefs.omniboxL) else { return false }
@@ -220,7 +220,7 @@ final class App: NSObject, NSApplicationDelegate {
       send(["omnibox": go.merging(["op": "go"]) { a, _ in a }], to: omniboxConnection)
       omnibox.hide()
     }
-    // Google's suggestions, unless Settings → Address Box → Google suggestions is off: then nothing typed
+    // Google's suggestions, unless Settings → Command Bar → Google suggestions is off: then nothing typed
     // leaves the Mac.
     model.onSuggest = { [weak model] text in
       guard Prefs.omniboxSuggestions else { return }

@@ -4,7 +4,7 @@
 // one short descriptive line under it that says what the feature does; a longer explanation, a footer
 // under a section, wrapped text or a "learn more" link stay out. Section headers are one or two words.
 //
-// Seven tabs: General (the app and what macOS grants it), Browser, Tabs, Mini Browsers, Address Box,
+// Seven tabs: General (the app and what macOS grants it), Browser, Tabs, Mini Browsers, Command Bar,
 // Player (SettingsTabs.swift), and Router, which edits the link rules (SettingsRouter.swift), written
 // back to routes.json as they change. The values live in the app's defaults (Prefs.swift).
 //
@@ -19,10 +19,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let width: CGFloat = 760
   // --demo-settings takes a tab by these names or by index.
-  static let tabNames = ["general", "browser", "tabs", "mini", "address", "player", "router"]
+  static let tabNames = ["general", "browser", "tabs", "mini", "command", "player", "router"]
   static func tabIndex(_ name: String) -> Int? {
     if let index = Int(name) { return tabNames.indices.contains(index) ? index : nil }
-    return tabNames.firstIndex(of: name.lowercased())
+    return tabNames.firstIndex(of: name.lowercased() == "address" ? "command" : name.lowercased())
   }
 
   var connectedProfiles: () -> [ConnectedProfile] = { [] }
@@ -68,7 +68,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
       (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 570),
       (NSHostingController(rootView: TabsSettings(model: model)), "Tabs", "sidebar.left", 500),
       (NSHostingController(rootView: MiniBrowserSettings()), "Mini Browsers", "macwindow.on.rectangle", 320),
-      (NSHostingController(rootView: AddressBoxSettings(model: model)), "Address Box", "magnifyingglass", 290),
+      (NSHostingController(rootView: CommandBarSettings(model: model)), "Command Bar", "magnifyingglass", 290),
       (NSHostingController(rootView: PlayerSettings()), "Player", "music.note", 300),
       (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500), // the rules beside the selected one's fields
     ]

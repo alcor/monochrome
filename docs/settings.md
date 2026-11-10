@@ -1,12 +1,14 @@
 # Every feature gets a row in the settings window
 
+Naming: the ⌘L/⌘T box is the command bar (Arc's name) in every user-facing string; the code keeps `Omnibox` and the `omnibox` keys.
+
 A plan for the settings window (`helper/Settings.swift`): which tabs it has, which control each feature gets, where each value is stored, and how the extension hears about the ones it must obey. Written November 10, 2026 against `origin/main` at `34f9ee4`. Nothing here is built.
 
 ## Summary
 
 The settings window has two tabs and two switches (`profileHotkeys`, `omnibox`). The README describes about thirty features. The plan gives each feature that can be switched a row, so the window is both the list of what Monochrome does and the place to turn a part of it off.
 
-- **Seven tabs:** General, Browser, Tabs, Mini Browsers, Address Box, Player, Router. 36 controls outside Router, which keeps its rules editor.
+- **Seven tabs:** General, Browser, Tabs, Mini Browsers, Command Bar, Player, Router. 36 controls outside Router, which keeps its rules editor.
 - **25 settings keys**, all in the app's defaults. 16 are read by the app alone. 9 are behaviour of the extension, and the app sends those to every connected copy as one `prefs` message.
 - **Every row carries its keys in the label and one descriptive line.** That is settled, below.
 - **The app is the one place settings are edited.** The extension's options page keeps the connection status, the Keyboard Shortcuts button and, only while the app is not connected, the locked group's title.
@@ -47,9 +49,9 @@ This document does not cover the Router's rule format (`docs/link-routing.md`), 
 | 16 | Profile HUD, 1.2 seconds | none | app | yes | yes | none |
 | 17 | Mini player on the tab sidebar, nine music sites | none | extension (`player.js`, `music.js`), app panel (`Player.swift`) | yes | Safari 27.3 or later | none |
 | 18 | Chrome's own pop-out player stopped on those sites | none | extension (`music.js`) | yes | unmeasured | none |
-| 19 | Address box | ⌘L, ⌘T; ⌥Return does the other | app (`Omnibox.swift`), data from the extension | yes | yes | `omnibox`, one switch for both keys |
-| 20 | Google suggestions in the address box | none | app | yes | yes | none |
-| 21 | Safari history and bookmarks in the address box | none | app reads `~/Library/Safari` | no | needs Full Disk Access | none |
+| 19 | Command bar | ⌘L, ⌘T; ⌥Return does the other | app (`Omnibox.swift`), data from the extension | yes | yes | `omnibox`, one switch for both keys |
+| 20 | Google suggestions in the command bar | none | app | yes | yes | none |
+| 21 | Safari history and bookmarks in the command bar | none | app reads `~/Library/Safari` | no | needs Full Disk Access | none |
 | 22 | App Shortcuts | ⌘S, ⇧⌘S, ⌥⌘↓, ⌥⌘↑ | app writes `NSUserKeyEquivalents` (`Install.swift`, `Safari.swift`) | every launch | when Browser is Safari | none |
 | 23 | Address bar opens the matching history page | none | app passes `OmniboxForceAllowedToBeDefault` (`Chrome.swift`) | yes | no | none |
 | 24 | Dock tile in Chrome's place | none | app | yes | no | none; placed once per app location |
@@ -92,7 +94,7 @@ Seven tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 - **Browser** is what the app sets up around the browser: which one, its profiles and extension, how Chrome starts. It is split from General because together they are 15 controls and a profile list.
 - **Tabs** is the tab sidebar: locked tabs, tab order, ⌃Tab, and the App Shortcuts, which are all sidebar keys.
 - **Mini Browsers** holds mini and peek browsers, which are the same windows.
-- **Address Box** is ⌘L and ⌘T.
+- **Command Bar** is ⌘L and ⌘T.
 - **Player** has two switches and the list of sites. It is its own tab because the site list is the advertisement and has no other home.
 - **Router** is unchanged apart from its empty-state text.
 
@@ -162,16 +164,16 @@ Notes on what each does when off:
 
 `peek` off: the extension tells every locked tab's catch script to stand down (the existing `{ mini: 'locked', value: false }` message), stops injecting it, and a foreground link from a locked tab becomes a new tab at the top. On again: it injects into every locked tab.
 
-### Address Box: 4 controls
+### Command Bar: 4 controls
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
-| ⌘L edits the front tab's address | T | on | `omniboxL` | `App.openOmnibox(newTab: false)` | In the address box over the window; ⌥Return opens a new tab |
-| ⌘T opens a new tab | T | on | `omniboxT` | `App.openOmnibox(newTab: true)` | From the address box, with the most used sites listed |
+| ⌘L edits the front tab's address | T | on | `omniboxL` | `App.openOmnibox(newTab: false)` | In the command bar over the window; ⌥Return opens a new tab |
+| ⌘T opens a new tab | T | on | `omniboxT` | `App.openOmnibox(newTab: true)` | From the command bar, with the most used sites listed |
 | Google suggestions | T | on | `omniboxSuggestions` | `model.onSuggest` in `App.setUpOmnibox` | What is typed goes to Google as it is typed |
 | Full Disk Access | S Open Settings…, shown when Browser is Safari or a Safari profile is connected | | none | whether `SafariHistory.databaseURL` is readable | For Safari's history and bookmarks |
 
-⌘L inside a mini browser is the bar's address field, not the address box, and follows neither switch.
+⌘L inside a mini browser is the bar's address field, not the command bar, and follows neither switch.
 
 ### Player: 2 controls
 
@@ -190,11 +192,11 @@ The rules list, add and remove, Show File, and the selected rule's fields stay a
 
 ## Cleanup of what exists
 
-1. **General splits.** Browser, the Browser Profiles list, Install Extension… and Relaunch Chrome… move to the Browser tab. Profile hotkeys moves there and becomes two toggles. "Address box for ⌘L and ⌘T" moves to Address Box and becomes two toggles.
+1. **General splits.** Browser, the Browser Profiles list, Install Extension… and Relaunch Chrome… move to the Browser tab. Profile hotkeys moves there and becomes two toggles. "Command bar for ⌘L and ⌘T" moves to Command Bar and becomes two toggles.
 2. **Old keys are read as fallbacks, not migrated.** `omniboxL` and `omniboxT` fall back to `omnibox` when unset; `profileArrows` and `profileDigits` fall back to `profileHotkeys`. Nothing writes the old keys again.
 3. **"Open at login" does not hold today.** `App.swift` line 73 registers the login item on every launch, so the toggle turned off is back on after the app next starts. The registration moves to once per app location, recorded in `loginItemFor`, the way `dockTileFor` and `defaultBrowserAskedFor` work.
 4. **Dead code goes.** `GeneralModel.extensions`, its `connections` closure and `SettingsWindow.connectionsSummary` (set in `App.swift` line 79) feed no view.
-5. **Labels follow the README.** Address box, mini browser, peek browser, locked tabs, mini player, switcher, profile HUD, App Shortcuts. Keys are written as the Shortcuts table writes them: "⌃⌥→, ⌃⌥←" and "⌃⌥1 to ⌃⌥9", where the current label has "⌃⌥← →" and "⌃⌥1–9". The header comment's "Routes" becomes Router.
+5. **Labels follow the README.** Command bar, mini browser, peek browser, locked tabs, mini player, switcher, profile HUD, App Shortcuts. Keys are written as the Shortcuts table writes them: "⌃⌥→, ⌃⌥←" and "⌃⌥1 to ⌃⌥9", where the current label has "⌃⌥← →" and "⌃⌥1–9". The header comment's "Routes" becomes Router.
 6. **Layout rules.**
    - The window is 760 points wide on every tab. Height is per tab, fitted so no tab scrolls, and set from the step 9 screenshots; I have no measured heights to give.
    - Every tab but Router is two columns of grouped forms. The left column holds the feature's main switches, the right its dependents, status rows or list.
@@ -229,7 +231,7 @@ These get no row, with the reason:
 
 ## Verification
 
-**`--demo-settings` per tab.** It becomes `--demo-settings [tab] [out.png] [dark]`, where `tab` is `general`, `browser`, `tabs`, `mini`, `address`, `player` or `router`, or its index 0 to 6. With no tab it shows Router, so the command in `store/listing.md` still makes `3-router.jpg`; `--general` goes. With `out.png` the window's content view is drawn into the file from the view itself, as `--demo-omnibox` does, so no screen recording is needed; the toolbar is not part of that view and the sidebar material may not draw. In demo mode `Prefs` uses a scratch defaults suite emptied at start, and the Browser Profiles list shows three sample profiles, so a demo run changes no real setting. One PNG per tab, light, looked at before the PR.
+**`--demo-settings` per tab.** It becomes `--demo-settings [tab] [out.png] [dark]`, where `tab` is `general`, `browser`, `tabs`, `mini`, `command`, `player` or `router`, or its index 0 to 6. With no tab it shows Router, so the command in `store/listing.md` still makes `3-router.jpg`; `--general` goes. With `out.png` the window's content view is drawn into the file from the view itself, as `--demo-omnibox` does, so no screen recording is needed; the toolbar is not part of that view and the sidebar material may not draw. In demo mode `Prefs` uses a scratch defaults suite emptied at start, and the Browser Profiles list shows three sample profiles, so a demo run changes no real setting. One PNG per tab, light, looked at before the PR.
 
 **`npm test` additions**, each driving the service worker as the suite already does:
 
@@ -252,7 +254,7 @@ These get no row, with the reason:
 
 - README: the Shortcuts table's two "Turn off in Settings → General" cells; the paragraph that begins "The settings window has two tabs"; Install steps 5 and 7 and the Safari list where they name the options page as the home of the group title; Safari step 5's "General → Browser"; `--demo-settings` under Commands.
 - README corrections found on the way: "Size and position are remembered" for mini browsers, where `mini-browser.js` opens each at one size and deletes the size earlier versions kept; and "Esc, in a mini browser: Close it", which the code does only on the new mini browser's search page.
-- `docs/privacy.md` says neither part sends anything off the computer and that the app has no network access beyond artwork. The address box sends what is typed to Google. The statement gains the suggestions, Safari's favicon lookups and the update check, and names the Google suggestions switch. `store/listing.md`'s privacy answers follow.
+- `docs/privacy.md` says neither part sends anything off the computer and that the app has no network access beyond artwork. The command bar sends what is typed to Google. The statement gains the suggestions, Safari's favicon lookups and the update check, and names the Google suggestions switch. `store/listing.md`'s privacy answers follow.
 - `docs/safari.md`: the options page line under extension feature 2.
 - The header comments of `Settings.swift`, `Tap.swift` and `background.js`.
 
@@ -277,7 +279,7 @@ Each has a proposed default, which is what step 1 builds unless changed.
 2. **One locked group title for all profiles.** Proposed: one, with the first legacy title a copy reports adopted. Two profiles with different titles lose the second.
 3. **Switcher panel off means live switching through the extension's commands.** Proposed: yes. The alternative is a walk with nothing on screen until ⌃ is released.
 4. **Player as its own tab with two switches.** Proposed: yes, for the site list. The alternative folds it into Tabs, which then has 12 controls.
-5. **The launch flag row sits on Browser, not Address Box.** Proposed: Browser, beside the Dock tile and the relaunch button it depends on.
+5. **The launch flag row sits on Browser, not Command Bar.** Proposed: Browser, beside the Dock tile and the relaunch button it depends on.
 6. **App Shortcuts off removes entries only when they still hold Monochrome's values.** Proposed: yes, so a shortcut someone reassigned is left alone.
 7. **Rows whose feature needs Accessibility or a connected extension that is missing.** Proposed: they stay enabled with no per-row warning; General and Browser show the two states.
 8. **Open Chrome when Monochrome starts, as a setting.** Proposed: keep it, default on. It is one guard and the only way to keep the login item without Chrome opening.

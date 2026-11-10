@@ -24,7 +24,7 @@
 //   --prefs [--defaults]  the `prefs` message the app sends the extension, as JSON: the current values, or
 //                   the defaults (Prefs.swift), which the tests compare with the extension's PREF_DEFAULTS
 //   --demo-settings [tab] [out.png] [dark]  the settings window on a tab (general, browser, tabs, mini,
-//                   address, player, router, or 0 to 6; Router when none) over a scratch defaults suite,
+//                   command, player, router, or 0 to 6; Router when none) over a scratch defaults suite,
 //                   with sample rules and profiles; with out.png, drawn into that file from the view and quit
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)

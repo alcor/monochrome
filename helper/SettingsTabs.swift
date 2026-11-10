@@ -329,18 +329,18 @@ struct MiniBrowserSettings: View {
   }
 }
 
-// MARK: Address Box
+// MARK: Command Bar
 
-struct AddressBoxSettings: View {
+struct CommandBarSettings: View {
   @ObservedObject var model: GeneralModel
   @ObservedObject private var prefs = PrefsObserver.shared
 
   var body: some View {
     Columns {
-      Section("Address Box") {
-        SettingToggle("⌘L edits the front tab's address", detail: "In the address box over the window; ⌥Return opens a new tab",
+      Section("Command Bar") {
+        SettingToggle("⌘L edits the front tab's address", detail: "In the command bar over the window; ⌥Return opens a new tab",
                       isOn: Prefs.binding(.omniboxL))
-        SettingToggle("⌘T opens a new tab", detail: "From the address box, with the most used sites listed",
+        SettingToggle("⌘T opens a new tab", detail: "From the command bar, with the most used sites listed",
                       isOn: Prefs.binding(.omniboxT))
       }
     } right: {

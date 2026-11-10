@@ -3,7 +3,7 @@
 // same tap sees what an extension can't without a script in every page: a scroll (the tab in front
 // has changed, for its thumbnail), an ⌥⌘-click (a link to open as a mini browser: it becomes a ⌘-click,
 // which Chrome opens as a background tab, and the extension is told that tab is a mini browser), and ⌘L
-// in a mini browser (its address field is the helper's), ⌘L and ⌘T elsewhere (the helper's address box,
+// in a mini browser (its address field is the helper's), ⌘L and ⌘T elsewhere (the helper's command bar,
 // Omnibox.swift), and the mini browser shortcuts themselves: ⌥⇧N
 // from any app for a new one, ⌘O and ⇧⌘O in one to open it in Chrome or pick where. Chrome can't
 // pre-set those for the extension (a manifest suggests at most four keys and none global), so the

@@ -14,8 +14,8 @@ Monochrome is a Chrome extension and a companion macOS app. The extension sends 
 
 Over Chrome's native messaging port to the Monochrome app on the same Mac, and nowhere else. The app's own requests are these:
 
-- **Google suggestions in the address box.** What you type into the address box (⌘L, ⌘T) is sent to Google's suggestion service as you type, as Chrome's own address bar does, so the box can list Google's suggestions. Turn it off in Settings → Address Box → Google suggestions; then nothing typed leaves the Mac.
-- **Site icons on Safari.** Safari gives extensions no site icons, so with Safari the app asks Google's favicon service for the icon of each site the address box lists.
+- **Google suggestions in the command bar.** What you type into the command bar (⌘L, ⌘T) is sent to Google's suggestion service as you type, as Chrome's own address bar does, so the box can list Google's suggestions. Turn it off in Settings → Command Bar → Google suggestions; then nothing typed leaves the Mac.
+- **Site icons on Safari.** Safari gives extensions no site icons, so with Safari the app asks Google's favicon service for the icon of each site the command bar lists.
 - **Artwork** for the sidebar player, from the address the music site gave.
 - **Update checks.** Once a day, and from Check for Updates…, the app reads `appcast.xml` from GitHub and, when there is a newer version, downloads it. Turn the daily check off in Settings → General.
 

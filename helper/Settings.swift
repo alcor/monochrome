@@ -207,7 +207,7 @@ struct GeneralSettings: View {
           }
           Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
         } header: {
-          Text("Extension")
+          Text("Browser Profiles")
         } footer: {
           if model.browser == .safari {
             Text("The Safari profiles whose extension is talking to the app. Turn Monochrome on in Safari's Extensions settings and allow it on every website.")

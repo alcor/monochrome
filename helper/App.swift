@@ -234,6 +234,13 @@ final class App: NSObject, NSApplicationDelegate {
     // Browsers' connections only: they have reported tabs. (This command's own socket is a connection too.)
     let candidates = allConnections.filter { ($0.safari != nil) == safari && (!$0.tabs.isEmpty || $0.front != nil) }
     let wanted = (test["profile"] as? String ?? "").lowercased()
+    if wanted == "@all" {
+      for (i, c) in candidates.enumerated() {
+        log.info("omnibox test: asking connection \(i): \(c.profile ?? "unnamed", privacy: .public) in \(c.browser ?? "?", privacy: .public), \(c.tabs.count) tabs")
+        send(["omnibox": ["op": "data", "id": -1 - i]], to: c)
+      }
+      return
+    }
     let named = wanted == "@last" ? candidates.last : wanted.isEmpty ? nil : candidates.first { ($0.safari?.profile ?? $0.profile ?? "").lowercased().hasPrefix(wanted) || ($0.profile ?? "").lowercased().hasPrefix(wanted) }
     guard let connection = named ?? candidates.first(where: { $0.profile != nil }) ?? candidates.first else { return log.info("omnibox test: no \(safari ? "Safari" : "Chrome", privacy: .public) connection") }
     let show = test["show"] as? Bool ?? false
@@ -257,7 +264,9 @@ final class App: NSObject, NSApplicationDelegate {
   }
 
   func receiveOmnibox(_ data: [String: Any], from connection: Connection) {
-    guard connection === omniboxConnection, data["id"] as? Int == omniboxRequest else { return }
+    guard connection === omniboxConnection, data["id"] as? Int == omniboxRequest else {
+      return log.info("omnibox: dropped data for request \(data["id"] as? Int ?? -1) (current \(self.omniboxRequest)), \(connection === self.omniboxConnection ? "same" : "another", privacy: .public) connection")
+    }
     let model = omnibox.model
     if connection.safari == nil {
       let history = (data["history"] as? [[String: Any]] ?? []).compactMap { h -> OmniboxPage? in
@@ -468,14 +477,19 @@ final class App: NSObject, NSApplicationDelegate {
       var list: AnyObject?
       guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXWindowsAttribute as CFString, &list) == .success,
             let windows = list as? [AXUIElement] else { continue }
-      for window in windows {
+      // A frame says which window only when no other window has it: two maximized windows of two
+      // profiles share one, and a frame match there named the other profile's connection.
+      let frames = windows.map(Chrome.axFrame)
+      for (index, window) in windows.enumerated() {
         guard let full = Chrome.axTitle(window) else { continue }
         let (tab, profile) = Chrome.split(title: full)
         guard !profile.isEmpty, connection(profile: profile, browser: browser) == nil else { continue }
-        let frame = Chrome.axFrame(window)
-        let candidates = connections.filter { c in
-          guard c.profile == nil, let front = c.front else { return false }
-          return front.title == tab || frame.map { Chrome.match(front.frame, in: [Chrome.Window(id: 0, frame: $0)]) != nil } ?? false
+        let frame = frames[index]
+        let frameIsUnique = frame.map { f in frames.enumerated().allSatisfy { $0.offset == index || $0.element.map { Chrome.match(f, in: [Chrome.Window(id: 0, frame: $0)]) == nil } ?? true } } ?? false
+        let unnamed = connections.filter { $0.profile == nil && $0.front != nil }
+        let byTitle = unnamed.filter { $0.front?.title == tab }
+        let candidates = !byTitle.isEmpty || !frameIsUnique ? byTitle : unnamed.filter { c in
+          frame.map { Chrome.match(c.front!.frame, in: [Chrome.Window(id: 0, frame: $0)]) != nil } ?? false
         }
         if candidates.count == 1 {
           candidates[0].profile = profile

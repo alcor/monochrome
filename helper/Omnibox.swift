@@ -117,6 +117,7 @@ final class OmniboxModel: ObservableObject {
     query += completion
     completion = ""
     rebuild()
+    onSuggest(query.trimmingCharacters(in: .whitespaces))
   }
 
   func receive(suggestions items: [OmniboxSuggestion], for text: String) {

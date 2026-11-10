@@ -17,7 +17,7 @@
 //   --settings      open the settings window of the running app (started if it is not)
 //   --demo-omnibox <out.png> [dark]  the ⌘L/⌘T box on sample history, drawn into a PNG
 //   --omnibox-snapshot <out.png>  the open ⌘L/⌘T box as on screen, into a PNG
-//   --omnibox chrome|safari [query] [--show] [--current] [--commit] [--profile=<name, Safari id prefix or @last>]  the
+//   --omnibox chrome|safari [query] [--show] [--current] [--commit] [--profile=<name, Safari id prefix, @last, or @all to ask each connection for data>]  the
 //                   ⌘L/⌘T box's model for that browser's profile, typed into without showing it (--show: the panel shown, typed into through
 //                   its field; it takes the keyboard); the running app logs the rows (Omnibox.swift)
 //   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)

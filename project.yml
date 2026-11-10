@@ -82,6 +82,10 @@ targets:
     postBuildScripts:
       - name: Extension and host
         basedOnDependencyAnalysis: false
+        # Declared so the files this script writes count as the target's output: without it an
+        # incremental build copies changed extension files and skips re-signing, breaking the seal.
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/extension-ids.json
         script: |
           # The extension's files (store/files, the list pack.sh zips) into Resources/extension, manifest
           # key included, for the Extension tab's Load unpacked; host.sh executable; and the extension
@@ -136,6 +140,9 @@ targets:
     postBuildScripts:
       - name: Extension files
         basedOnDependencyAnalysis: false
+        # As above: declared so an incremental build re-signs the app extension after copying.
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json
         script: |
           # The files store/files lists, into the app extension's Resources, where Safari reads the
           # extension; manifest.json is the Safari one, written from the Chrome manifest.

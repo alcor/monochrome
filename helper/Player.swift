@@ -161,7 +161,7 @@ final class Player: NSObject {
     // Chrome: the window's left edge and the sidebar width the extension measured. Safari: the tab
     // list found over Accessibility.
     let column: CGRect
-    if Browser.current == .safari {
+    if Browser.active == .safari {
       guard let found = SafariSidebar.frame(for: window) else { return panel.orderOut(nil) }
       column = found
     } else {

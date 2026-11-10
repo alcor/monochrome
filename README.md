@@ -48,10 +48,12 @@ The extension's fallback commands are in `chrome://extensions/shortcuts`. Chrome
 Monochrome.app carries a Safari Web Extension built from the same files (`safari/`, the `MonochromeSafari` target in `project.yml`). To use Monochrome with Safari:
 
 1. **Install and open the app** as in steps 1 to 3 above. Opening it once registers its Safari extension with Safari.
-2. **Choose Safari** in Monochrome's settings window: General → Browser → Safari. The event tap, the switcher, the mini browser bar, the peek shade and links from other apps then follow Safari instead of Chrome.
-3. **Turn the extension on** in Safari → Settings → Extensions → Monochrome. The settings window's Safari Extension Settings… button opens that page.
-4. **Allow it on every website**: in the same page, Edit Websites… → Other Websites → Allow, which Safari also offers as "Always Allow on Every Website". Peek, ⌃Tab thumbnails, switcher favicons and the music hooks need it.
-5. **Pin the tabs that should be locked.**
+2. **Turn the extension on** in Safari → Settings → Extensions → Monochrome. The settings window's Safari Extension Settings… button opens that page.
+3. **Allow it on every website**: in the same page, Edit Websites… → Other Websites → Allow, which Safari also offers as "Always Allow on Every Website". Peek, ⌃Tab thumbnails, switcher favicons and the music hooks need it.
+4. **Pin the tabs that should be locked.**
+5. **Optionally, choose Safari** in Monochrome's settings window: General → Browser → Safari. That setting is where links from other apps open and which browser starts at login; it also writes Safari's App Shortcuts (below).
+
+Chrome and Safari can be used at the same time. Both browsers' extensions stay connected, and the event tap, the switcher, the mini browser bar, the peek shade, the profile hotkeys and the mini player follow whichever browser is in front.
 
 Safari differences:
 
@@ -182,7 +184,7 @@ Typing words and pressing Enter opens the history entry that matches them rather
 - **The Safari extension** (`Contents/PlugIns/Monochrome Extension.appex`): what the extension's native port reaches in Safari. It relays each message to the app over a socket in the app group container, with the Safari profile it came from; the app answers through `SFSafariApplication.dispatchMessage`.
 - **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
 
-The settings window has two tabs: General, in two columns (the browser, Chrome or Safari; login item, default browser, Accessibility, the version with Check for Updates…; Chrome's launch flags, which profiles' extensions are connected, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
+The settings window has two tabs: General, in two columns (the browser, Chrome or Safari; login item, default browser, Accessibility, the version with Check for Updates…; Browser Profiles: each connected profile with its browser's icon and a letter avatar, a warning triangle when Chrome runs without its launch flags, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
 Logs go to the unified log under subsystem `com.artifact.monochrome`:
 

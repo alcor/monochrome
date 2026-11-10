@@ -8,11 +8,14 @@
 import AppKit
 import UserNotifications
 
-// Which browser the app works with, set on the settings window's General tab. Everything that follows
-// "Chrome" below (the front app check, its windows over the window list and Accessibility, opening
-// links) follows Safari instead when this says Safari; the launch flags and the Dock tile stay
-// Chrome's, and profiles come from Safari's File menu (Safari.swift). Kept in the app's defaults;
-// Chrome until changed.
+// Both browsers' extensions connect at once. `active` is the one the app works with at a given moment:
+// the browser in front, or the one that was in front before this app's own panels or settings window
+// came forward. Everything that follows "Chrome" below (the front app check, its windows over the
+// window list and Accessibility, opening links) follows Safari instead while that is Safari, and
+// profiles come from Safari's File menu (Safari.swift).
+// `current` is the setting on the settings window's General tab: the browser links from other apps open
+// in, and the one started at login. The launch flags and the Dock tile stay Chrome's. Kept in the app's
+// defaults; Chrome until changed.
 enum Browser: String, CaseIterable, Identifiable {
   case chrome, safari
   var id: String { rawValue }
@@ -20,8 +23,14 @@ enum Browser: String, CaseIterable, Identifiable {
 
   static var current: Browser {
     get { UserDefaults.standard.string(forKey: "browser").flatMap(Browser.init(rawValue:)) ?? .chrome }
-    set { UserDefaults.standard.set(newValue.rawValue, forKey: "browser") }
+    set {
+      let before = active
+      UserDefaults.standard.set(newValue.rawValue, forKey: "browser")
+      if active != before { Chrome.onBrowserChange() }
+    }
   }
+
+  static var active: Browser { _ = Chrome.watchFront; return Chrome.frontBrowser ?? current }
 }
 
 enum Chrome {
@@ -39,7 +48,7 @@ enum Chrome {
   ]
   static let safari = Variant(bundleId: Safari.bundleId, name: "Safari")
   // The browsers in play: every Chrome, or Safari alone.
-  static var variants: [Variant] { Browser.current == .safari ? [safari] : chromeVariants }
+  static var variants: [Variant] { Browser.active == .safari ? [safari] : chromeVariants }
   static var bundleIds: [String] { variants.map(\.bundleId) }
   static let features = ["OmniboxForceAllowedToBeDefault"]
 
@@ -47,6 +56,11 @@ enum Chrome {
   static func name(of app: NSRunningApplication) -> String { variants.first { $0.bundleId == app.bundleIdentifier }?.name ?? "Chrome" }
 
   static var runningApps: [NSRunningApplication] { bundleIds.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0) } }
+
+  // The Chrome the launch flags are about, whichever browser is active.
+  static var runningChrome: NSRunningApplication? {
+    chromeVariants.lazy.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0.bundleId) }.first
+  }
 
   // The one to ask when one is needed: the one in front, else the owner of the Chrome window highest
   // on screen, else whichever runs.
@@ -61,14 +75,27 @@ enum Chrome {
   // Kept from the workspace's activation notices rather than asked per event: the tap consults it on
   // every keystroke and click.
   // (The front app's id is kept, not the answer, so a change of browser in settings counts at once.)
-  static var isFrontmost: Bool { _ = frontmostObserver; return isChrome(frontmost) }
+  static var isFrontmost: Bool { _ = watchFront; return isChrome(frontmost) }
   private static var frontmost: String?
-  private static let frontmostObserver: Void = {
-    frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+  // The browser behind Browser.active: set when one comes forward, kept while this app is in front,
+  // cleared when any other app is.
+  private(set) static var frontBrowser: Browser?
+  static var onBrowserChange: () -> Void = {}
+  static let watchFront: Void = {
+    activated(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
-      frontmost = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+      activated((note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier)
     }
   }()
+  // Reads frontBrowser directly, not Browser.active: this runs inside watchFront's initializer.
+  private static func activated(_ bundleId: String?) {
+    frontmost = bundleId
+    let before = frontBrowser ?? Browser.current
+    if bundleId == Safari.bundleId { frontBrowser = .safari }
+    else if chromeVariants.contains(where: { $0.bundleId == bundleId }) { frontBrowser = .chrome }
+    else if bundleId != Bundle.main.bundleIdentifier { frontBrowser = nil }
+    if frontBrowser ?? Browser.current != before { onBrowserChange() }
+  }
 
   // Launches with the flags, or hands URLs to the running one (which opens them as tabs: the extension
   // turns those into mini browsers). activate: bring it to the front either way.
@@ -77,7 +104,7 @@ enum Chrome {
     guard let appURL = running?.bundleURL ?? bundleIds.lazy.compactMap({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }).first else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = activate
-    if running == nil && Browser.current == .chrome { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
+    if running == nil && Browser.active == .chrome { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
     if urls.isEmpty {
       NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     } else {
@@ -85,11 +112,30 @@ enum Chrome {
     }
   }
 
+  // Quits the Chrome that is missing its flags and starts the same one again with them. terminate() is
+  // an ordinary quit, so Chrome can still stop it (a download in progress asks first); after 30 seconds
+  // the relaunch is dropped rather than forcing it.
+  static func relaunchWithFlags() {
+    guard let app = runningChrome, let appURL = app.bundleURL else { return }
+    app.terminate()
+    func start(after attempt: Int) {
+      guard app.isTerminated else {
+        if attempt < 120 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { start(after: attempt + 1) } }
+        else { log.info("relaunch: \(name(of: app), privacy: .public) did not quit within 30 seconds") }
+        return
+      }
+      let configuration = NSWorkspace.OpenConfiguration()
+      configuration.arguments = ["--enable-features=" + features.joined(separator: ",")]
+      NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+    }
+    start(after: 0)
+  }
+
   // A Chrome that was started some other way is missing its flags. Say so, once per Chrome launch,
   // instead of silently doing nothing.
   static var warnedPid: pid_t = 0
   static func warnIfStartedWithoutFlags() {
-    guard Browser.current == .chrome, let running, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
+    guard Browser.current == .chrome, let running = runningChrome, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
     warnedPid = running.processIdentifier
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in
@@ -103,7 +149,7 @@ enum Chrome {
 
   // nil: not running. false: started some other way, without the flags.
   static func runningWithFlags() -> Bool? {
-    guard let running else { return nil }
+    guard let running = runningChrome else { return nil }
     let ps = Process()
     ps.executableURL = URL(fileURLWithPath: "/bin/ps")
     ps.arguments = ["-o", "args=", "-p", String(running.processIdentifier)]
@@ -179,7 +225,7 @@ enum Chrome {
       return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
     }
     // Safari puts no profile in its titles, so a page title ending in a profile's name is just a title.
-    for name in Browser.current == .chrome ? Profiles.names() : [] where full.hasSuffix(" - " + name) {
+    for name in Browser.active == .chrome ? Profiles.names() : [] where full.hasSuffix(" - " + name) {
       return (String(full.dropLast(name.count + 3)), name)
     }
     return (full, "")

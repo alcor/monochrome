@@ -32,6 +32,8 @@ const open = (p, pinned = false) => sw.evaluate(async ([url, pinned]) => {
 }, [base + p, pinned]);
 const go = (id, p) => sw.evaluate(([id, url]) => chrome.tabs.update(id, { url }), [id, base + p]).then(() => sleep(300));
 const urlOf = id => sw.evaluate(async id => { const t = await chrome.tabs.get(id); return t.pendingUrl || t.url; }, id);
+// A reset navigates the tab; on a loaded CI runner that can take longer than a fixed sleep, so wait up to 3 s for the URL.
+const urlBecomes = async (id, url) => { for (let i = 0; i < 30 && (await urlOf(id)) !== url; i++) await sleep(100); return urlOf(id); };
 const call = (fn, id) => sw.evaluate(async ([fn, id]) => { await self[fn](await chrome.tabs.get(id)); }, [fn, id]);
 const close = id => sw.evaluate(id => chrome.tabs.remove(id), id).then(settle);
 const pageFor = async url => {
@@ -49,8 +51,7 @@ await settle();
 
 await go(a, '/a2');
 await call('reset', a);
-await sleep(300);
-assert.equal(await urlOf(a), `${base}/a`);
+assert.equal(await urlBecomes(a, `${base}/a`), `${base}/a`);
 console.log('reset after navigation: ok');
 
 // Closing a pinned tab puts it back at its pinned URL in the same spot.
@@ -65,16 +66,14 @@ await go(a2, '/x');
 await go(b2, '/y');
 await sw.evaluate(async () => { await queue; await chrome.storage.session.clear(); });
 await call('reset', b2);
-await sleep(300);
-assert.equal(await urlOf(b2), `${base}/b`);
+assert.equal(await urlBecomes(b2, `${base}/b`), `${base}/b`);
 console.log('reset after simulated restart: ok');
 
 // Replace pinned URL with current.
 await call('repin', a2);
 await go(a2, '/z');
 await call('reset', a2);
-await sleep(300);
-assert.equal(await urlOf(a2), `${base}/x`);
+assert.equal(await urlBecomes(a2, `${base}/x`), `${base}/x`);
 console.log('repin: ok');
 
 // Pinning a new tab records its own URL, not a neighbour's.
@@ -82,8 +81,7 @@ const c = await open('/c', true);
 await settle();
 await go(c, '/c2');
 await call('reset', c);
-await sleep(300);
-assert.equal(await urlOf(c), `${base}/c`);
+assert.equal(await urlBecomes(c, `${base}/c`), `${base}/c`);
 console.log('newly pinned tab keeps its own URL: ok');
 
 // Unpinned tabs: reset does nothing, close really closes.
@@ -91,8 +89,7 @@ await sw.evaluate(id => chrome.tabs.update(id, { pinned: false }), c);
 await settle();
 await go(c, '/c3');
 await call('reset', c);
-await sleep(300);
-assert.equal(await urlOf(c), `${base}/c3`);
+assert.equal(await urlBecomes(c, `${base}/c3`), `${base}/c3`);
 await close(c);
 assert.deepEqual(await pinnedUrls(), [`${base}/x`, `${base}/b`]);
 console.log('unpinned tab ignored: ok');

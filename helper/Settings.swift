@@ -13,7 +13,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let size = NSSize(width: 760, height: 464)
   var connectionsSummary: () -> String = { "" }
-  var connectedProfiles: () -> [String] = { [] }
+  var connectedProfiles: () -> [ConnectedProfile] = { [] }
   var checkForUpdates: () -> Void = {}
   private var window: NSWindow?
   private var tabs: SettingsTabs?
@@ -96,19 +96,47 @@ final class SettingsTabs: NSTabViewController {
 }
 
 // General: login item, default browser, Accessibility, and what the app sees of Chrome and its extension.
+// A profile whose extension is talking to the app, as the Browser Profiles list shows it: the browser's
+// icon, the profile's avatar, its name.
+struct ConnectedProfile: Identifiable {
+  let name: String
+  let browser: String
+  let appIcon: NSImage
+  var id: String { browser + "\u{0}" + name }
+}
+
+extension ConnectedProfile {
+  // nil until Chrome's window titles have told the app the profile's name.
+  init?(_ connection: Connection) {
+    let variant: Chrome.Variant
+    if let safari = connection.safari {
+      variant = Chrome.safari
+      name = connection.profile ?? safari.label
+    } else {
+      guard let profile = connection.profile else { return nil }
+      let index = Chrome.chromeVariants.firstIndex { $0.name == connection.browser } ?? 0
+      variant = Chrome.chromeVariants[index]
+      name = profile
+    }
+    browser = variant.name
+    appIcon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId).map { NSWorkspace.shared.icon(forFile: $0.path) }
+      ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)!
+  }
+}
+
 final class GeneralModel: ObservableObject {
   @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
   @Published var isDefaultBrowser = false
   @Published var accessibility = AXIsProcessTrusted()
-  @Published var chrome = ""
+  @Published var browserWarning: String? // shown as a triangle by the Browser Profiles header
   @Published var browser = Browser.current
   @Published var extensions = ""
-  @Published var connected: [String] = []
+  @Published var connected: [ConnectedProfile] = []
   let connections: () -> String
-  let profiles: () -> [String]
+  let profiles: () -> [ConnectedProfile]
   let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
 
-  init(connections: @escaping () -> String, profiles: @escaping () -> [String]) {
+  init(connections: @escaping () -> String, profiles: @escaping () -> [ConnectedProfile]) {
     self.connections = connections
     self.profiles = profiles
     refresh()
@@ -119,15 +147,8 @@ final class GeneralModel: ObservableObject {
     accessibility = AXIsProcessTrusted()
     isDefaultBrowser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) == Bundle.main.bundleURL
     browser = Browser.current
-    if browser == .safari {
-      chrome = Chrome.running == nil ? "Not running" : "Running"
-    } else {
-      switch Chrome.runningWithFlags() {
-      case nil: chrome = "Not running"
-      case true?: chrome = "Running with its launch flags"
-      case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
-      }
-    }
+    browserWarning = browser == .chrome && Chrome.runningWithFlags() == false
+      ? "Chrome is running without its launch flags. Quit it (⌘Q) and open it from the Dock." : nil
     extensions = connections()
     connected = profiles()
   }
@@ -150,6 +171,16 @@ final class GeneralModel: ObservableObject {
 
   func installExtension() {
     if browser == .safari { Safari.showExtensionSettings() } else { InstallExtensionPanel.shared.show() }
+  }
+
+  func relaunchChrome() {
+    let alert = NSAlert()
+    alert.messageText = "Relaunch Chrome?"
+    alert.informativeText = "Chrome quits and opens again with its launch flags. Its windows come back if Chrome's Settings → On startup is set to Continue where you left off."
+    alert.addButton(withTitle: "Relaunch")
+    alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+    Chrome.relaunchWithFlags()
   }
 
   func makeDefault() {
@@ -192,27 +223,41 @@ struct GeneralSettings: View {
         } header: {
           Text("Monochrome")
         } footer: {
-          Text("Browser is the one the shortcuts, panels and links from other apps work with. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
+          Text("Browser is where links from other apps open and the one started at login. ⌃Tab, the panels and the profile hotkeys work in Chrome and Safari alike, following whichever is in front. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
         }
       }
       Form {
-        Section(model.browser.name) {
-          Text(model.chrome).foregroundStyle(.secondary)
-        }
         Section {
           if model.connected.isEmpty {
             Text("No profile has connected").foregroundStyle(.secondary)
           } else {
-            ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
+            ForEach(model.connected) { profile in
+              HStack(spacing: 8) {
+                Image(nsImage: profile.appIcon).resizable().frame(width: 18, height: 18).help(profile.browser)
+                ProfileAvatar(name: profile.name, size: 18)
+                Text(profile.name).foregroundStyle(.secondary)
+              }
+            }
           }
-          Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
+          HStack {
+            Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
+            if model.browserWarning != nil { Button("Relaunch Chrome…", action: model.relaunchChrome) }
+          }
         } header: {
-          Text("Extension")
+          HStack(spacing: 4) {
+            Text("Browser Profiles")
+            if let warning = model.browserWarning {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .help(warning)
+                .accessibilityLabel(warning)
+            }
+          }
         } footer: {
           if model.browser == .safari {
-            Text("The Safari profiles whose extension is talking to the app. Turn Monochrome on in Safari's Extensions settings and allow it on every website.")
+            Text("The Chrome and Safari profiles whose extension is talking to the app. In Safari, turn Monochrome on in the Extensions settings and allow it on every website.")
           } else {
-            Text("The profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
+            Text("The Chrome and Safari profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
           }
         }
       }

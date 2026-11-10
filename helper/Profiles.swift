@@ -48,18 +48,19 @@ final class Profiles {
 
   // The names alone, from every running Chrome, for reading window titles; the menus are walked at
   // most every five seconds.
-  private static var cachedNames: [String] = [], namesRead = Date.distantPast
+  private static var cachedNames: [String] = [], namesRead = Date.distantPast, namesBrowser = Browser.chrome
   static func names() -> [String] {
-    if Date().timeIntervalSince(namesRead) > 5 {
+    if Date().timeIntervalSince(namesRead) > 5 || namesBrowser != Browser.active {
       cachedNames = Array(Set(Chrome.runningApps.flatMap { read($0).map(\.name) }))
       namesRead = Date()
+      namesBrowser = Browser.active
     }
     return cachedNames
   }
 
   // The Profiles menu's items up to its first separator; after that come Edit… and Add Profile….
   static func read(_ chrome: NSRunningApplication? = Chrome.running) -> [Profile] {
-    if Browser.current == .safari { return SafariProfiles.read(chrome) }
+    if Browser.active == .safari { return SafariProfiles.read(chrome) }
     guard let chrome else { return [] }
     let app = AXUIElementCreateApplication(chrome.processIdentifier)
     func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
@@ -91,7 +92,7 @@ final class Profiles {
   func go(to index: Int, in list: [Profile]? = nil) {
     let profiles = list ?? Self.read()
     guard profiles.indices.contains(index) else { return }
-    if Browser.current == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
+    if Browser.active == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
     show(profiles, index: index)
   }
 
@@ -197,13 +198,7 @@ private struct ProfileCard: View {
     let name = parts.first.map { $0.trimmingCharacters(in: .whitespaces) } ?? profile.name
     let account = parts.count > 1 ? parts[1].replacingOccurrences(of: ")", with: "") : ""
     VStack(spacing: 6) {
-      ZStack {
-        Circle().fill(color)
-        Text(String(name.prefix(1)).uppercased())
-          .font(.system(size: Profiles.avatar * 0.45, weight: .semibold))
-          .foregroundStyle(.white)
-      }
-      .frame(width: Profiles.avatar, height: Profiles.avatar)
+      ProfileAvatar(name: profile.name, initialOf: name, size: Profiles.avatar)
       .padding(8)
       .background { if selected { well.fill(.black.opacity(0.5)) } }
       VStack(spacing: 1) {
@@ -213,10 +208,27 @@ private struct ProfileCard: View {
       .frame(width: Profiles.avatar + 16 + Profiles.gap - 4, height: Profiles.labelHeight)
     }
   }
+}
 
-  // A hue from the name, steady across launches.
-  private var color: Color {
-    let hash = profile.name.unicodeScalars.reduce(5381) { ($0 << 5) &+ $0 &+ Int($1.value) }
+// A profile's initial on a hue hashed from its name, steady across launches. The profile menus carry
+// no images over Accessibility, and macOS refuses Chrome's own profile pictures to other apps.
+struct ProfileAvatar: View {
+  let name: String
+  var initialOf: String? // the part of the name to take the initial from, when not the whole
+  let size: CGFloat
+
+  var body: some View {
+    ZStack {
+      Circle().fill(Self.hue(name))
+      Text(String((initialOf ?? name).prefix(1)).uppercased())
+        .font(.system(size: size * 0.45, weight: .semibold))
+        .foregroundStyle(.white)
+    }
+    .frame(width: size, height: size)
+  }
+
+  static func hue(_ name: String) -> Color {
+    let hash = name.unicodeScalars.reduce(5381) { ($0 << 5) &+ $0 &+ Int($1.value) }
     return Color(hue: Double(abs(hash) % 360) / 360, saturation: 0.55, brightness: 0.75)
   }
 }

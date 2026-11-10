@@ -94,7 +94,7 @@ async function openPeekBrowser(source, over) {
 
 // The in-page shade is the fallback; the helper draws its own over the window.
 function dim(tabId, on) {
-  if (helper) return Promise.resolve();
+  if (helperUp()) return Promise.resolve();
   return chrome.scripting.executeScript({ target: { tabId }, args: [on], func: on => {
     const id = 'monochrome-peek-dim';
     document.getElementById(id)?.remove();
@@ -119,10 +119,10 @@ async function miniTargets() {
   const { lastNormal } = await miniState();
   const wins = (await chrome.windows.getAll({ windowTypes: ['normal'], populate: true }))
     .sort((a, b) => (b.id === lastNormal) - (a.id === lastNormal));
-  const groups = await chrome.tabGroups.query({});
+  const groups = HAS_GROUPS ? await chrome.tabGroups.query({}) : [];
   return wins.map(w => {
     const active = w.tabs.find(t => t.active);
-    const name = (active?.title || active?.url || 'Chrome').slice(0, 40);
+    const name = (active?.title || active?.url || BROWSER_NAME).slice(0, 40);
     return {
       windowId: w.id,
       title: wins.length > 1 ? `${name} · ${w.tabs.length} tab${w.tabs.length === 1 ? '' : 's'}` : name,
@@ -132,6 +132,7 @@ async function miniTargets() {
 }
 
 async function moveToMain(tabId, { windowId, groupId } = {}) {
+  if (!HAS_GROUPS) groupId = undefined;
   if (!windowId) windowId = (await miniTargets())[0]?.windowId;
   if (!windowId) {
     const w = await chrome.windows.create({ tabId, type: 'normal', focused: true });
@@ -151,7 +152,7 @@ async function activeMiniTab() {
 
 // The in-page bar is the fallback; with the helper app connected the bar is its own panel (helper.js).
 async function showMiniBar(tabId) {
-  if (helper) return;
+  if (helperUp()) return;
   await chrome.scripting.executeScript({ target: { tabId }, files: ['mini-browser-bar.js'] }).catch(() => {});
 }
 
@@ -212,7 +213,10 @@ chrome.alarms.create('mini-archive', { periodInMinutes: 30 });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === 'mini-archive') archiveMiniBrowsers(); });
 
 // What a mini browser search box or address field means: a URL goes straight there, anything else is a
-// search with Chrome's default engine.
+// search with Chrome's default engine. Safari has no search API and tells extensions nothing about its
+// engine, so there it is a Google search.
+const searchUrl = text => `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+
 function asUrl(text) {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return text;
   if (/\s/.test(text)) return null;
@@ -225,7 +229,8 @@ function asUrl(text) {
 async function miniGo(tabId, text) {
   const url = asUrl(text);
   if (url) await chrome.tabs.update(tabId, { url });
-  else await chrome.search.query({ text, tabId });
+  else if (chrome.search) await chrome.search.query({ text, tabId });
+  else await chrome.tabs.update(tabId, { url: searchUrl(text) });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -234,6 +239,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   else if (msg.mini === 'locked?') isLocked(sender.tab.id).then(reply);
   else if (msg.mini === 'go') miniGo(sender.tab.id, msg.text).then(() => reply(true));
   else if (msg.mini === 'targets') miniTargets().then(reply);
+  else if (msg.mini === 'browser') reply(BROWSER_NAME);
   else if (msg.mini === 'shortcuts') chrome.commands.getAll().then(cs => reply(Object.fromEntries(cs.map(c => [c.name, c.shortcut]))));
   else if (msg.mini === 'move') moveToMain(sender.tab.id, msg.to).then(() => reply(true));
   else return;
@@ -246,7 +252,7 @@ async function miniCommand(command) {
   if (!tab) return;
   if (command === 'mini-open') return moveToMain(tab.id);
   if (command === 'mini-open-in') {
-    if (helper) return helperSend({ miniMenu: tab.windowId });
+    if (helperUp()) return helperSend({ miniMenu: tab.windowId });
     return chrome.tabs.sendMessage(tab.id, { mini: 'menu' }).catch(() => {});
   }
 }

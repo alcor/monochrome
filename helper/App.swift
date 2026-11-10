@@ -9,20 +9,28 @@
 // connection per profile here. Tab and window ids are unique across a Chrome process, so lists merge;
 // what needs routing is which connection gets a message: the owner of a tab or mini browser, or the
 // one whose front window is the window in front on screen.
+//
+// Safari's copies of the extension reach the app through its app extension instead (Bridge.swift,
+// Safari.swift): one connection per Safari profile, made when that profile's first message arrives and
+// dropped when it has been quiet for 150 seconds (the extension says it is alive every minute) or
+// Safari quits. Only the connections of the browser chosen in settings take part. A Safari connection
+// is known by Safari's profile id; its name is learned when the app opens that profile's window from
+// Safari's File menu (learnSafariProfile) and kept across launches (SafariProfiles.learned).
 import AppKit
 import Sparkle
 import ServiceManagement
 
 final class Connection {
-  let peer: LineSocket
+  let peer: Peer
   var tabs: [TabInfo] = []
   var front: (id: Int, frame: CGRect, title: String)?
-  var profile: String? // the name Chrome puts in this profile's window titles, once seen
+  var profile: String? // the name Chrome puts in this profile's window titles, once seen; on Safari, the learned name
   var browser: String? // which Chrome (Chrome.Variant.name), learned with the profile
   var app: NSRunningApplication? { Chrome.runningApps.first { Chrome.name(of: $0) == browser } ?? Chrome.running }
   var minis: [MiniBrowser] = []
   var targets: [Target] = []
-  init(peer: LineSocket) { self.peer = peer }
+  var safari: SafariPeer? { peer as? SafariPeer }
+  init(peer: Peer) { self.peer = peer }
 }
 
 // The app has no Dock tile or windows most of the time, so an update found by a scheduled check would
@@ -47,7 +55,10 @@ final class App: NSObject, NSApplicationDelegate {
   let tap = Tap()
   let tracker = WindowTracker()
   var server: SocketServer?
-  var connections: [Connection] = []
+  var safariServer: SocketServer?
+  var safariSockets: [ObjectIdentifier: LineSocket] = [:] // the app extension's open sockets
+  var allConnections: [Connection] = []
+  var connections: [Connection] { allConnections.filter { ($0.safari != nil) == (Browser.current == .safari) } }
   var playerOwner: Connection?
   var sessions = Set<String>()
   var scrollTimer: Timer?
@@ -61,11 +72,11 @@ final class App: NSObject, NSApplicationDelegate {
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
     SettingsWindow.shared.connectedProfiles = { [weak self] in
-      self?.connections.compactMap { c in c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
+      self?.connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
     }
     SettingsWindow.shared.connectionsSummary = { [weak self] in
       guard let self, !connections.isEmpty else { return "Not connected" }
-      let names = connections.compactMap { c in c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
+      let names = connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
       let count = "\(connections.count) profile\(connections.count == 1 ? "" : "s")"
       return "Connected in " + (names.count == connections.count ? names.joined(separator: ", ") : count)
     }
@@ -119,6 +130,8 @@ final class App: NSObject, NSApplicationDelegate {
       if pick { minis.showMenu(front.id) } else { minis.onAction(["window": front.id, "action": "open"]) }
       return true
     }
+    profiles.onSafari = { [weak self] profile in self?.switchSafari(to: profile) }
+    SafariProfiles.current = { [weak self] in self?.frontConnection?.profile }
     tap.onProfile = { [weak self] step, index in
       guard let self else { return }
       if let index { profiles.go(to: index) } else { profiles.cycle(step) }
@@ -138,8 +151,8 @@ final class App: NSObject, NSApplicationDelegate {
     server?.onConnection = { [weak self] peer in
       guard let self else { return }
       let connection = Connection(peer: peer)
-      connections.append(connection)
-      log.info("host: connected (\(self.connections.count))")
+      allConnections.append(connection)
+      log.info("host: connected (\(self.allConnections.count))")
       send(["resend": true], to: connection) // this app may have restarted under a host that is already up
       peer.onLine = { [weak self, weak connection] line in
         guard let connection, let message = JSONLine.decode(line) else { return }
@@ -147,18 +160,78 @@ final class App: NSObject, NSApplicationDelegate {
       }
       peer.onClose = { [weak self, weak connection] in
         guard let self, let connection else { return }
-        connections.removeAll { $0 === connection }
-        log.info("host: disconnected (\(self.connections.count) left)")
-        if playerOwner === connection { playerOwner = nil; player.apply(nil) }
-        merge()
+        drop(connection)
+        log.info("host: disconnected (\(self.allConnections.count) left)")
       }
     }
+    startSafari()
 
     whenTrusted { [weak self] in
       let installed = self?.tap.install() ?? false
       log.info("tap: \(installed ? "installed" : "could not be created", privacy: .public)")
     }
-    if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
+    // Chrome is started at login to get its launch flags; Safari takes none and starts when wanted.
+    if Browser.current == .chrome {
+      if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
+    }
+  }
+
+  func drop(_ connection: Connection) {
+    allConnections.removeAll { $0 === connection }
+    if playerOwner === connection { playerOwner = nil; player.apply(nil) }
+    merge()
+  }
+
+  // Safari: the app extension's socket, one line per message with its profile; pings to keep each
+  // profile's service worker up, as Chrome's host does; and a resend at launch and when Safari starts,
+  // since messages sent while the app was down are lost.
+  func startSafari() {
+    safariServer = SocketServer(path: SafariSocket.path, queue: .main)
+    if safariServer == nil { log.error("safari: could not listen at \(SafariSocket.path, privacy: .public)") }
+    safariServer?.onConnection = { [weak self] socket in
+      guard let self else { return }
+      let key = ObjectIdentifier(socket)
+      safariSockets[key] = socket
+      socket.onClose = { [weak self] in self?.safariSockets[key] = nil }
+      socket.onLine = { [weak self] line in
+        guard let envelope = JSONLine.decode(line), let message = envelope["message"] as? [String: Any] else { return }
+        self?.receiveSafari(message, profile: envelope["profile"] as? String ?? "")
+      }
+    }
+    Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+      guard let self else { return }
+      for c in allConnections where c.safari != nil && (Browser.current != .safari || Date().timeIntervalSince(c.safari!.lastHeard) > 150) {
+        log.info("safari: \(c.safari!.label, privacy: .public) gone quiet")
+        drop(c)
+      }
+      if Browser.current == .safari && Safari.isRunning { connections.forEach { self.send(["ping": true], to: $0) } }
+    }
+    let center = NSWorkspace.shared.notificationCenter
+    center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+      guard let self, (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == Safari.bundleId else { return }
+      allConnections.filter { $0.safari != nil }.forEach(drop)
+    }
+    center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { note in
+      guard Browser.current == .safari, (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == Safari.bundleId else { return }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Safari.dispatch(["resend": true]) }
+    }
+    if Browser.current == .safari && Safari.isRunning { Safari.dispatch(["resend": true]) }
+  }
+
+  func receiveSafari(_ message: [String: Any], profile: String) {
+    guard Browser.current == .safari else { return }
+    let connection: Connection
+    if let known = allConnections.first(where: { $0.safari?.profile == profile }) {
+      connection = known
+    } else {
+      connection = Connection(peer: SafariPeer(profile: profile))
+      connection.profile = SafariProfiles.learned[profile]
+      allConnections.append(connection)
+      log.info("safari: \(connection.safari!.label, privacy: .public) connected (\(self.allConnections.count))")
+      if message["hello"] == nil { send(["resend": true], to: connection) } // the app started after it said hello
+    }
+    connection.safari?.lastHeard = Date()
+    receive(message, from: connection)
   }
 
   // A reopen from the Dock, where the tile stands in for Chrome, opens Chrome. From anywhere else
@@ -223,10 +296,13 @@ final class App: NSObject, NSApplicationDelegate {
   // Profiles menu item) brings that profile's window forward, opening one if it has none, and the
   // extension there connects and reports a window carrying the name. Up to three seconds for that;
   // then the URL goes to Chrome, which opens it in the profile now in front.
-  func deliver(_ url: URL, to: [String: Any], profile name: String, tries: Int = 12) {
+  // On Safari the switch is the profile's File → New Window item, which opens a window of that
+  // profile; the connection that reports it learns the name (learnSafariProfile), and the link goes
+  // over that connection. Safari gets eight seconds, since a profile's extension may start with it.
+  func deliver(_ url: URL, to: [String: Any], profile name: String, tries: Int? = nil) {
     learnProfiles()
     if let known = connection(profile: name, browser: nil) { return deliver(url, to: to, over: known) }
-    if tries == 12 {
+    if tries == nil {
       let list = Profiles.read()
       guard let index = list.firstIndex(where: { $0.name == name }) else {
         log.error("route: no profile named \(name, privacy: .public); using the front one")
@@ -234,8 +310,38 @@ final class App: NSObject, NSApplicationDelegate {
       }
       profiles.go(to: index, in: list)
     }
-    guard tries > 0 else { return Chrome.open([url], activate: true) }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: tries - 1) }
+    let left = tries ?? (Browser.current == .safari ? 32 : 12)
+    guard left > 0 else { return Chrome.open([url], activate: true) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: left - 1) }
+  }
+
+  // A Safari profile picked by hotkey or by a route. When its extension is connected and has a window,
+  // that copy of the extension focuses its last focused window. Otherwise the app presses the
+  // profile's File → New Window item and waits for a connection to report a new front window: that
+  // connection is the profile. **Unmeasured**: whether each profile's copy of the extension sees only
+  // that profile's windows, which this relies on.
+  var pendingSafari: (name: String, at: Date, fronts: [ObjectIdentifier: Int])?
+  func switchSafari(to profile: Profile) {
+    if let known = connection(profile: profile.name, browser: nil), known.front != nil {
+      send(["focusFront": true], to: known)
+      NSRunningApplication.runningApplications(withBundleIdentifier: Safari.bundleId).first?.activate()
+      return
+    }
+    pendingSafari = (profile.name, Date(), Dictionary(connections.map { (ObjectIdentifier($0), $0.front?.id ?? -1) }, uniquingKeysWith: { a, _ in a }))
+    AXUIElementPerformAction(profile.item, kAXPressAction as CFString)
+  }
+
+  // After switchSafari pressed a New Window item: the first Safari connection, within ten seconds,
+  // whose front window is not the one it had before (or that is new) takes the profile's name.
+  func learnSafariProfile(_ connection: Connection) {
+    guard let pending = pendingSafari, let peer = connection.safari, let front = connection.front else { return }
+    guard Date().timeIntervalSince(pending.at) < 10 else { pendingSafari = nil; return }
+    if pending.fronts[ObjectIdentifier(connection)] == front.id { return }
+    pendingSafari = nil
+    for other in connections where other !== connection && other.profile == pending.name { other.profile = nil }
+    connection.profile = pending.name
+    SafariProfiles.remember(pending.name, for: peer.profile)
+    log.notice("profile: Safari profile \(peer.label, privacy: .public) learned as \(pending.name, privacy: .public)")
   }
 
   // The connection learned as a profile of a Chrome: a popup's title has no browser name, so a
@@ -251,8 +357,9 @@ final class App: NSObject, NSApplicationDelegate {
   var lastLearn = Date.distantPast
   func learnProfiles(force: Bool = false) {
     // At most every two seconds unless forced: with a single profile the titles carry no name, and
-    // this would read the window list on every message for nothing.
-    guard connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
+    // this would read the window list on every message for nothing. Safari names no profile in its
+    // titles; its connections are told apart by Safari's own profile id instead.
+    guard Browser.current == .chrome, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
     lastLearn = Date()
     for app in Chrome.runningApps {
       let browser = Chrome.name(of: app)
@@ -319,6 +426,7 @@ final class App: NSObject, NSApplicationDelegate {
       }
       if let id = message["window"] as? Int, let front = message["front"] as? [String: Any], let frame = rect(front) {
         connection.front = (id, frame, front["title"] as? String ?? "")
+        learnSafariProfile(connection)
       }
       merge()
       let listed = Set(connections.flatMap(\.tabs).map(\.id))

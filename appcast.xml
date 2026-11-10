@@ -10,7 +10,7 @@
             <sparkle:version>1.1</sparkle:version>
             <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.1/Monochrome-app-1.1.zip" length="3951415" type="application/octet-stream" sparkle:edSignature="YYtmqLUwtbj9K8syWNuGxVgCRDyqPfKHhF7MUeLAzeX83JZ4VIvPiLduktJ7KVuw5AS9Rr62XThjXsfiNQs7Dg=="/>
+            <enclosure url="https://github.com/arfct/monochrome/releases/download/v1.1/Monochrome-app-1.1.zip" length="3859085" type="application/octet-stream" sparkle:edSignature="48zmF7bEnDByRsBZ/1QBBq15hhwf61fBB98vOfDrRe3O/oCx4eDla3wWeZV2DS9maobg7NM1m7oH9E2CMe60Cw=="/>
         </item>
     </channel>
 </rss>

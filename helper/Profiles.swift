@@ -4,6 +4,10 @@
 // extension is needed for this part. ⌃⌥→ and ⌃⌥← cycle, ⌃⌥1 to 9 go direct; a glass HUD of letter
 // avatars shows for a moment with the chosen one marked. The menu carries no images, so avatars are
 // the name's initial on a color hashed from the name.
+//
+// On Safari the list comes from File → New Window's per-profile items instead (SafariProfiles in
+// Safari.swift), and a switch goes through the app (onSafari): it brings forward a window of a profile
+// whose extension is connected, or presses that profile's New Window item.
 import AppKit
 import SwiftUI
 
@@ -28,6 +32,7 @@ final class Profiles {
                               backing: .buffered, defer: false)
   private let hosting: NSHostingView<ProfilesView>
   private var hideTimer: Timer?
+  var onSafari: (Profile) -> Void = { AXUIElementPerformAction($0.item, kAXPressAction as CFString) }
 
   init() {
     panel.level = .floating
@@ -54,6 +59,7 @@ final class Profiles {
 
   // The Profiles menu's items up to its first separator; after that come Edit… and Add Profile….
   static func read(_ chrome: NSRunningApplication? = Chrome.running) -> [Profile] {
+    if Browser.current == .safari { return SafariProfiles.read(chrome) }
     guard let chrome else { return [] }
     let app = AXUIElementCreateApplication(chrome.processIdentifier)
     func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
@@ -85,7 +91,7 @@ final class Profiles {
   func go(to index: Int, in list: [Profile]? = nil) {
     let profiles = list ?? Self.read()
     guard profiles.indices.contains(index) else { return }
-    AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString)
+    if Browser.current == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
     show(profiles, index: index)
   }
 

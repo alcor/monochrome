@@ -1,0 +1,88 @@
+# Safari: what carries over, what doesn't
+
+A plan for running Monochrome on Safari as well as Chrome, written November 9, 2026 against `main` at `7322655`, and rewritten the same day after phases 1 to 3 were built on the `safari` branch and again after profiles, App Shortcuts and the mini player were built for Safari. API support comes from MDN's browser-compat-data 8.1.8 (November 2, 2026). The test Mac runs macOS 27.2 with Safari 27.2.
+
+**What is built.** The extension runs from the same files on both browsers and checks for each Chrome-only API before using it. Monochrome.app contains a Safari Web Extension (`safari/`, target `MonochromeSafari` in `project.yml`, bundle id `com.artifact.monochrome.extension`) built from those files with a generated Safari manifest. The app has a Browser setting (Chrome or Safari) that its event tap, switcher, mini browser bar, peek shade, link routing, profile hotkeys, App Shortcuts, mini player and settings window follow. The native messaging bridge has a second transport for Safari. `uninstall.sh` removes what the Safari side adds.
+
+**What is verified.** `npm test` passes on Chromium. It checks the Safari manifest, the search and favicon stand-ins, how the extension unwraps a `dispatchMessage` and drops another profile's message, and, through the built app's `--check-safari` command: profile names parsed from File menu titles, the Safari 27.3 gate for vertical tabs, the sidebar pick from sample AX frames, the profile envelope sent to `dispatchMessage`, and the App Shortcuts written to a scratch preferences domain. The Safari removal in `uninstall.sh` was run against a scratch domain by hand. The app and the app extension build and sign with the Artifact team's Apple Development identity, the app extension with the app sandbox and the app group. Nothing has run in Safari: the extension has not been enabled, and every Safari behavior below marked **unmeasured** is still unmeasured. Phase 0 is still the way to measure it.
+
+## Summary
+
+About two thirds of the extension maps onto Safari's web extension API as written: locked pinned tabs, new tabs at the top, the recent-tab list with thumbnails, peek, the music hooks and the fallback commands. Four things have no Safari API: tab groups (so the `CoreCore` locked group and the `group` route destination), the search API, favicons, and window move/resize events. Each now has a stand-in or is skipped. The app side carries over except for what is Chrome by name: launch flags, the Dock tile, the Arc import and the native messaging host. Profiles come from Safari's File menu instead of Chrome's Profiles menu. Native messaging got a second transport through the app extension. Whether Safari draws a `type: 'popup'` window without its toolbar is still the open question for mini browsers.
+
+## Extension features
+
+Feature, the APIs it uses, and the Safari status.
+
+1. **Locked tabs, pinned.** `tabs.pinned`, `tabs.create({pinned})`, `tabs.onRemoved`, `tabs.onUpdated`, `storage.session`: all supported (Safari 14, `storage.session` 16.4). Built as on Chrome. Safari shows pinned tabs in every window, where Chrome pins per window; how the API reports that (one tab ID per window or one shared) is **unmeasured**, and the restore-by-position logic in `background.js` depends on it.
+2. **Locked tabs, `CoreCore` group.** `tabGroups.*`, `tabs.group`, `tabs.ungroup`, `Tab.groupId`: not supported. Built: every group call is behind `HAS_GROUPS` (`!!chrome.tabGroups`), so on Safari only pinned tabs lock and the options page hides the group's title.
+3. **New tabs at the top.** `tabs.move`: Safari 27. `Tab.openerTabId`: Safari 14. Carries over unchanged; **unmeasured**.
+4. **⌃Tab by recent use.** `tabs.onActivated`, `windows.onFocusChanged`: supported. `Tab.lastAccessed`: not supported; built so restored tabs keep the query's order until visited. Thumbnails: `tabs.captureVisibleTab`, Safari 14, needs host access to the page.
+5. **Switcher favicons.** `/_favicon/` and `Tab.favIconUrl`: not in Safari. Built: where the manifest has no `favicon` permission (the Safari manifest), `helper.js` fetches Google's favicon service, `https://www.google.com/s2/favicons?domain_url=<origin>&sz=32`. Chrome keeps its own `/_favicon/` cache. The fetch needs host access to google.com, which "Always Allow on Every Website" gives.
+6. **Mini browsers.** `windows.create({type: 'popup'})` on both browsers, as decided. Whether Safari drops the toolbar and tab bar for it is **unmeasured**. `windows.onBoundsChanged`: not supported; built so that without it the extension reads the mini browser windows once a second while one is open and sends them to the app only when they changed.
+7. **Mini browser search.** `search.query`: not supported. Built: without `chrome.search`, text that is not an address goes to `https://www.google.com/search?q=<text>`.
+8. **Open in window or tab group.** Windows carry over; the group list is empty on Safari.
+9. **Peek.** `scripting.executeScript({world: 'MAIN'})`: Safari 15.4. `windows.create({tabId})`: Safari 27. Carries over unchanged; **unmeasured**. Xcode 27.2's `safari-web-extension-converter` warns that `world` is unsupported, which disagrees with MDN; also **unmeasured**.
+10. **Music hooks.** Content scripts with `world: 'MAIN'`: Safari 18 by MDN, with the same converter warning. **Unmeasured**.
+11. **Fallback commands.** Manifest `commands`: Safari 26. No `global` scope and no shortcuts page; built so the options page hides its Keyboard Shortcuts button outside Chrome, and `commands.getAll` failing leaves the shortcut labels empty.
+12. **Links from other apps without the app.** Chrome marks them as `start_page` navigations in `webNavigation.onCommitted`. Whether Safari reports `transitionType` is **unmeasured**; without it such a link stays a tab. With the app running, links go over the bridge and this does not apply.
+
+Safari applies content scripts and `captureVisibleTab` only on sites the person has granted. Peek, thumbnails, favicons and the music hooks need "Always Allow on Every Website" in Safari's extension settings, a step the README's install shows.
+
+## App features
+
+1. **Event tap, switcher, mini browser bar, peek shade.** Built: `Chrome.variants` is Safari alone when the Browser setting says Safari, so the front-app check, the window list and the Accessibility reads follow Safari. The bar and shade positions over Safari's windows are **unmeasured**: the bar's offsets were measured on Chrome's popup title bar.
+2. **Default browser and link routing.** Carries over. The Router tab does not offer "Tab group" on Safari; a rule that already names a group opens a new tab in the front window there, which `routes.js` does when it has no tab groups.
+3. **Profiles.** Built (`SafariProfiles` in `helper/Safari.swift`). Each Safari profile's copy of the extension is its own connection, keyed by `SFExtensionProfileKey`; the app does no window-title learning on Safari, since Safari's titles carry no profile. The front profile is the connection whose reported front window matches the window in front on screen.
+   - **The list.** With more than one profile, Safari's File → New Window is a submenu with one item per profile. Safari.framework's `Localizable.strings` titles them `New %@ Window` (keys `New %@ Window`, `Item in dock menu to open a profile window`, `new profile window in tab group switcher`), and the private window item is `New Private Window`. The app reads the user's language's strings, walks the menu bar over AX (the File menu first), and takes every submenu item whose title fits the format, except the private window item. A profile named "Private" is therefore not listed.
+   - **Names for connections.** The extension API gives a profile id, not a name. When the app presses a profile's New Window item, the first Safari connection to report a new front window within ten seconds takes that profile's name, and the id-to-name pair is kept in the app's defaults (`safariProfileNames`) across launches. A renamed profile is learned again the next time its item is pressed.
+   - **Hotkeys.** ⌃⌥→, ⌃⌥← and ⌃⌥1 to 9 cycle and pick from that list, with the same HUD as on Chrome. A profile whose extension is connected and has a window gets `{"focusFront": true}` over its connection, and that copy of the extension focuses its last focused normal window. Otherwise the app presses the profile's New Window item, which opens a new window in that profile.
+   - **Routes.** A `profile` destination goes over that profile's connection when its name is known. Otherwise the app presses the New Window item, waits up to eight seconds for the connection to be learned, then sends the link over it; failing that, Safari opens the link in the profile in front. The Router tab's profile picker and the mini browser bar's other-profiles list show Safari's names.
+   - **Unmeasured**: the submenu's AX shape (read like Chrome's Profiles menu: menu bar item, menu, item with a menu child), whether each profile's copy of the extension sees only its own profile's windows (the name learning and `focusFront` rely on it), and whether a new window in the same profile opened within those ten seconds is mistaken for the pressed one.
+4. **Mini player.** Built behind a check (`SafariSidebar` in `helper/Safari.swift`). On Safari the extension sends the player state without the sidebar-width gate, and the app finds the tab list over AX: Safari 27.3 or later (the installed Safari's `CFBundleShortVersionString`), then, in the AX window matching the screen window, an AXOutline, AXList, AXTable, AXScrollArea, AXGroup or AXSplitGroup against the window's left edge, at least half its height, 120 points to half its width wide, holding AXRadioButton, AXRow or AXTabButton items within three levels. A list role wins over a container. The panel sits at the bottom of that region. The AX read happens at most once a second per window; between reads the region follows the window. With Safari 27.2, or nothing found, the panel stays hidden. **Unmeasured**: the whole AX shape, since this Mac runs 27.2 and Safari's vertical tabs arrive in 27.3.
+5. **Address bar opens the history match.** A Chrome launch flag. The app passes flags only to Chrome; on Safari it does not start the browser at login.
+6. **App Shortcuts.** Built (`SafariShortcuts` in `helper/Safari.swift`). When the Browser setting is Safari, at each launch and when the setting changes to Safari, the app adds Safari's equivalents of Chrome's to `NSUserKeyEquivalents` in the `com.apple.Safari` domain, through CFPreferences, so cfprefsd writes them to Safari's container: ⌘S for "Show Sidebar" and "Hide Sidebar" (the item changes its title as it toggles), ⇧⌘S for "Save As…", ⌥⌘↓ for "Show Next Tab", ⌥⌘↑ for "Show Previous Tab". The titles come from Safari's `MainMenu.nib` and Safari.framework's strings, in English only. Other App Shortcuts in the domain stay. Safari reads them when it starts, so Safari has to be quit and reopened once; the app does not do that. Chrome's "make me the default browser" switch has no Safari equivalent and is not written. **Unmeasured**: whether macOS lets the app write Safari's container (the write is logged when refused, and may need the app to be allowed to reach other apps' data), and which item toggles Safari 27.3's vertical tab sidebar.
+7. **Dock tile that starts Chrome with flags.** Placed only when the Browser setting is Chrome at the app's first launch from a location.
+8. **Arc import.** Chrome only.
+
+## Native messaging has a second transport
+
+Chrome starts the app binary as a native messaging host per connection, found through the `NativeMessagingHosts` manifests `Install.swift` writes. That is unchanged. Safari has no host manifests. A Safari web extension is an app extension (`.appex`) inside the containing app, and:
+
+- the extension's `runtime.connectNative` and `sendNativeMessage` reach the appex's `SafariWebExtensionHandler`, a separate, sandboxed process;
+- the app reaches the extension with `SFSafariApplication.dispatchMessage`, which arrives on the extension's native port.
+
+Built as a relay:
+
+1. The appex (`safari/SafariWebExtensionHandler.swift`) writes each message from the extension as one line, `{"profile": "<SFExtensionProfileKey>", "message": {...}}`, to a Unix socket in the app group container `~/Library/Group Containers/TVA9Z8LD95.com.artifact.monochrome/safari.sock` (`SafariSocket` in `helper/Bridge.swift`). The app group is the one folder both the sandboxed appex and the app can reach. When nothing listens, the appex opens Monochrome.app in the background, at most every ten seconds.
+2. The app (`helper/App.swift`, `helper/Safari.swift`) listens on that socket, makes one connection per Safari profile, and answers through `dispatchMessage`. Because `dispatchMessage` names no profile, a message for one profile carries `safariProfile`; each copy of the extension learns its own profile id by asking the appex (`{"whoami": true}` over `sendNativeMessage`) and ignores messages for another.
+3. The extension unwraps `dispatchMessage`'s `{name, userInfo}` shape, says it is alive once a minute, and counts the app as connected only when the app has spoken in the last 90 seconds. The app pings each Safari connection every 20 seconds, as Chrome's host does, drops a connection quiet for 150 seconds or when Safari quits, and asks the extension to resend everything at launch and when Safari starts.
+
+The message format in `helper.js` is unchanged; the Safari fields are additions. **Unmeasured**: whether a sandboxed appex may connect to a socket in its app group container, whether it may open its containing app, the exact shape `dispatchMessage` delivers, and whether `dispatchMessage` reaches every profile's copy or only one.
+
+## Packaging
+
+Built. `project.yml` has the `MonochromeSafari` app-extension target, embedded in Monochrome.app's `Contents/PlugIns`, with `NSExtensionPointIdentifier` `com.apple.Safari.web-extension`, the app sandbox and the app group (`safari/Extension.entitlements`). Monochrome.app gets the same app group (`helper/Monochrome.entitlements`) so it can use the container without macOS asking. The target's run script copies the files `store/files` lists into the appex's Resources and writes the Safari manifest with `store/safari-manifest.py`: the Chrome manifest without `key`, `minimum_chrome_version`, the `tabGroups`, `search` and `favicon` permissions, and `options_ui.open_in_tab`. It is Python because Xcode's run scripts have `python3` and may not have `node`. The Chrome flow (`store/files`, `Resources/extension`, `extension-ids.json`, `store/pack.sh`) is unchanged.
+
+`uninstall.sh` removes the app (and with it the app extension Safari lists), the app's defaults domain (`com.artifact.monochrome`: the browser choice and the learned Safari profile names among them), the app group folder `~/Library/Group Containers/TVA9Z8LD95.com.artifact.monochrome` (only when the path is exactly that and is a real folder), and the five Safari App Shortcuts, rewriting only `NSUserKeyEquivalents` in `com.apple.Safari` and leaving it alone when macOS refuses the read.
+
+The person enables the extension in Safari Settings → Extensions. Whether `make release`'s Developer ID signing and notarization carry the appex and the app group entitlements is **unmeasured** until the next release is built.
+
+## Phases
+
+0. **Measure.** Not done; agents cannot drive Safari's interface on the build Mac. Enable the built extension in Safari and record: the popup window's look, pinned tab IDs across two windows, `tabs.move` under the pinned tabs, `captureVisibleTab` timing, a native message round-trip through the appex, the `dispatchMessage` shape and its reach across profiles, Safari's File → New Window submenu over AX, which windows each profile's copy of the extension sees, whether the App Shortcuts write reaches Safari's container, and, on 27.3, the vertical tab sidebar's AX shape. Exit: one screenshot and one logged value per item, in this file.
+1. **Extension runs on both.** Built. Exit met on Chrome (`npm test` passes); the Safari half of the exit (the extension loads with no errors in its background console) is not checked.
+2. **Appex and bridge.** Built. Exit not checked: the options page reading "connected" in Safari.
+3. **App retarget.** Built. Exit not checked: ⌃Tab with thumbnails, a mini browser from Slack, and a peek, in Safari, each with a screenshot.
+4. **Mini player.** Built behind the 27.3 and AX checks. Exit not checked: on Safari 27.3 with vertical tabs, the player at the bottom of the tab list with a screenshot, and the AX shape recorded here.
+5. **Profiles and App Shortcuts.** Built. Exit not checked: with two Safari profiles, ⌃⌥→ moves between them with the HUD, a `profile` route lands in the named profile, and after a Safari restart ⌘S toggles the sidebar.
+
+## Open
+
+Answered:
+
+1. One app for both browsers, with a browser setting. Decided: one app. Built as the Browser setting on the General tab.
+2. A replacement for the locked group. Decided: pinned tabs only. `CoreCore` and `group` route destinations are Chrome only and are skipped on Safari.
+3. The mini browser's search engine. Decided: Google, with no setting, because Safari has no search API.
+4. If phase 0 shows popup windows keep Safari's toolbar: ship mini browsers as small normal windows, or drop them on Safari. Still open. Mini browsers stay `windows.create({type: 'popup'})` until the popup's look is measured.
+5. Favicons. Decided: Google's S2 service, on Safari only.

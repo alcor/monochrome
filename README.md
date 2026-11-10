@@ -11,11 +11,13 @@ The two talk over Chrome's native messaging. Each runs without the other: every 
 
 Monochrome does not touch Chrome's data folder, sync or passwords, and does not replace the tab bar, the address bar or the New Tab page. The one exception is the optional Arc import under Install, which runs once.
 
+Safari is supported as well, from the same app and the same extension files, with fewer features: see [Safari](#safari) below. The app works with one browser at a time, chosen on its settings window.
+
 ## Install
 
 Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chromium count as Chrome throughout.
 
-1. **Get the app.** Either download `Monochrome-app-<version>.zip` from https://github.com/arfct/monochrome/releases/latest, unzip it and move Monochrome.app to Applications, or build it from source (next section). The release is signed with an Apple Development certificate and not notarized, so the first open is a right-click and Open.
+1. **Get the app.** Either download `Monochrome-app-<version>.zip` from https://github.com/arfct/monochrome/releases/latest, unzip it and move Monochrome.app to Applications, or build it from source (next section). The release is signed with the Artifact Creative Foundation's Developer ID and notarized by Apple, so it opens like any downloaded app. Move it to Applications before the first open: at launch it registers its own location with Chrome.
 
 2. **Open the app.** It installs itself on launch (`helper/Install.swift`):
    - registers itself as the extension's native messaging host with each Chrome that has run on this Mac;
@@ -41,6 +43,32 @@ Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chrom
 
 The extension's fallback commands are in `chrome://extensions/shortcuts`. Chrome pre-fills ⌃R, ⌃., ⌃⇧. and ⌃, on a fresh load. ⌥⇧N (scope Global), ⌘O and ⇧⌘O have no defaults and matter only when the app is not running.
 
+## Safari
+
+Monochrome.app carries a Safari Web Extension built from the same files (`safari/`, the `MonochromeSafari` target in `project.yml`). To use Monochrome with Safari:
+
+1. **Install and open the app** as in steps 1 to 3 above. Opening it once registers its Safari extension with Safari.
+2. **Choose Safari** in Monochrome's settings window: General → Browser → Safari. The event tap, the switcher, the mini browser bar, the peek shade and links from other apps then follow Safari instead of Chrome.
+3. **Turn the extension on** in Safari → Settings → Extensions → Monochrome. The settings window's Safari Extension Settings… button opens that page.
+4. **Allow it on every website**: in the same page, Edit Websites… → Other Websites → Allow, which Safari also offers as "Always Allow on Every Website". Peek, ⌃Tab thumbnails, switcher favicons and the music hooks need it.
+5. **Pin the tabs that should be locked.**
+
+Safari differences:
+
+- Only pinned tabs are locked. Safari gives extensions no tab groups, so there is no `CoreCore` group, the options page does not show its title, and a route to a tab group opens a new tab in the front window instead. The Router tab does not offer "Tab group" on Safari.
+- The mini browser's search box searches Google. Safari has no search API and does not tell extensions its search engine.
+- Switcher favicons come from Google's favicon service (`www.google.com/s2/favicons`) by the page's origin. Chrome uses its own favicon cache.
+- Mini browsers are popup windows, as on Chrome. Whether Safari draws them without its toolbar has not been checked.
+- Safari reports no window moves or resizes to extensions, so the extension reads the mini browser windows once a second while one is open.
+- Profiles come from Safari's File → New Window submenu, which has a "New <name> Window" item per profile. The profile hotkeys (⌃⌥→, ⌃⌥←, ⌃⌥1 to 9) bring forward a window of a profile whose extension is connected, and otherwise press that item, which opens a new window in the profile. Safari tells extensions a profile id, not a name, so the app learns each name the first time it opens that profile's window this way, and keeps it. A `profile` route destination goes over the profile's connection once its name is known, and otherwise opens its window first.
+- The mini player needs Safari's vertical tabs, which arrive in Safari 27.3. On 27.3 or later the app looks for the tab list over Accessibility and puts the player at its bottom; with Safari 27.2, or no tab list found, there is no mini player.
+- App Shortcuts are written to Safari's preferences when the Browser setting is Safari: ⌘S shows and hides the sidebar, ⇧⌘S is Save As…, ⌥⌘↓ and ⌥⌘↑ are the next and previous tab. Quit and reopen Safari once for them to apply. macOS may refuse the write, since Safari's preferences are in its container; the app logs it.
+- No launch flags, no Dock tile and no Arc import. The app does not start Safari at login.
+- There is no shortcuts page for the extension's fallback commands, and no Global scope, so ⌥⇧N from another app needs the app.
+- The extension talks to the app through its app extension: the extension's messages go to the app over a socket in the app group container (`~/Library/Group Containers/TVA9Z8LD95.com.artifact.monochrome`), and the app answers through Safari. Details are in `docs/safari.md`.
+
+None of the Safari behavior has been tried in Safari yet; `docs/safari.md` lists what is unmeasured, including the Accessibility shape of Safari's profile menu and of 27.3's tab sidebar.
+
 ## Build from source
 
 Requires git, Xcode and XcodeGen (`brew install xcodegen`), the same setup as the other Artifact apps: `project.yml` describes the app, `make project` generates `Monochrome.xcodeproj` from it (the project is not committed), and the Makefile has the rest.
@@ -52,9 +80,9 @@ cd ~/Code/monochrome && make install
 
 Clone to a permanent folder, not Downloads: Chrome loads the unpacked extension from it. `make install` builds the Release configuration into `build/`, replaces `~/Applications/Monochrome.app` and opens it; from there the app installs itself as in step 2 above. Re-running is safe. `make run` opens the build as it is with `--portable`, which registers the host only: no login item, Dock tile, App Shortcuts or default-browser question. `Monochrome --register-host` writes the host registration and quits.
 
-The project's one run script copies the extension's files (`store/files`) into the app's `Contents/Resources/extension`, makes `host.sh` executable, and writes the extension IDs the app registers its host for to `Contents/Resources/extension-ids.json`: the unpacked one, derived from the manifest key, and the store's from `store/id`. Sparkle comes in as a Swift package. `helper/Info.plist` is generated from `project.yml` and ignored by git.
+The Safari extension target's run script copies the same files into the app extension's Resources, with `manifest.json` written by `store/safari-manifest.py` (no `key`, `minimum_chrome_version`, or `tabGroups`, `search` and `favicon` permissions). The app's run script copies the extension's files (`store/files`) into the app's `Contents/Resources/extension`, makes `host.sh` executable, and writes the extension IDs the app registers its host for to `Contents/Resources/extension-ids.json`: the unpacked one, derived from the manifest key, and the store's from `store/id`. Sparkle comes in as a Swift package. `helper/Info.plist` is generated from `project.yml` and ignored by git.
 
-**Signing.** macOS ties the Accessibility grant to the app's signature. The project signs automatically with the Artifact team, so the grant survives rebuilds on a Mac with that team's certificate; without one, Xcode's ad-hoc fallback makes each rebuild a new app to macOS and Accessibility has to be allowed again.
+**Signing.** macOS ties the Accessibility grant to the app's signature. The project signs automatically with the Artifact team, so the grant survives rebuilds on a Mac with that team's certificate; without one, Xcode's ad-hoc fallback makes each rebuild a new app to macOS and Accessibility has to be allowed again. Releases are signed with Developer ID instead, a different certificate from the Apple Development one `make install` uses, so moving between a release and a local build asks for Accessibility again.
 
 ## Shortcuts
 
@@ -68,8 +96,8 @@ The project's one run script copies the extension's files (`store/files`) into t
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | Esc, in a mini browser | Close it | extension |
-| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile. On by default; turn off in Settings → General if Rectangle or another window manager uses them | app |
-| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu. Same setting | app |
+| ⌃⌥→, ⌃⌥← | Next, previous Chrome profile (Safari profile on Safari). On by default; turn off in Settings → General if Rectangle or another window manager uses them | app |
+| ⌃⌥1 to ⌃⌥9 | Profile by its place in Chrome's Profiles menu (Safari's File → New Window submenu on Safari). Same setting | app |
 | ⌘S | Collapse or show the vertical tab bar | macOS App Shortcut, set by the app |
 | ⇧⌘S | Save Page As, moved off ⌘S | macOS App Shortcut, set by the app |
 | ⌥⌘↓, ⌥⌘↑ | Next, previous tab in the list | macOS App Shortcut, set by the app |
@@ -135,7 +163,7 @@ The catch is two scripts the extension injects into locked tabs only (`peek-clic
 
 ## Profiles switch through Chrome's own menu
 
-⌃⌥→ and ⌃⌥← go to the next and previous profile, ⌃⌥1 to 9 to one by position. The app reads Chrome's Profiles menu over Accessibility and presses the item (`helper/Profiles.swift`), so this works in a profile without the extension; every other feature needs the extension loaded there. A HUD shows the profiles as initials on a color derived from the name, the chosen one marked, for 1.2 seconds. The menu carries no avatar images, which is why initials.
+⌃⌥→ and ⌃⌥← go to the next and previous profile, ⌃⌥1 to 9 to one by position. The app reads Chrome's Profiles menu over Accessibility and presses the item (`helper/Profiles.swift`), so this works in a profile without the extension; every other feature needs the extension loaded there. A HUD shows the profiles as initials on a color derived from the name, the chosen one marked, for 1.2 seconds. The menu carries no avatar images, which is why initials. Safari's profiles come from its File menu instead; see [Safari](#safari).
 
 ## The mini player sits on the tab sidebar
 
@@ -151,9 +179,10 @@ Typing words and pressing Enter opens the history entry that matches them rather
 
 - **The app** (no arguments): installs itself at launch, owns the event tap and every panel, the Dock tile and the default-browser role, and listens on a Unix socket in `~/Library/Application Support/Monochrome`. A click on its Dock tile opens Chrome; a double-click in the Finder, or the ▾ menu of any mini browser's bar, opens the settings window.
 - **The host** (`--host`): what Chrome spawns for the extension's native messaging port. It relays between the port and the app's socket, and pings the extension every 20 seconds so Chrome does not stop the service worker for idleness. Each Chrome profile gets its own host process and connection; the app routes tab actions to the connection that owns the tab and front-window actions to the connection whose front window matches Chrome's.
-- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
+- **The Safari extension** (`Contents/PlugIns/Monochrome Extension.appex`): what the extension's native port reaches in Safari. It relays each message to the app over a socket in the app group container, with the Safari profile it came from; the app answers through `SFSafariApplication.dispatchMessage`.
+- **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), and `--demo`, `--demo-profiles`, `--demo-settings`, `--demo-shade` for the panels over sample data.
 
-The settings window has two tabs: General, in two columns (login item, default browser, Accessibility, the version with Check for Updates…; Chrome's launch flags, which profiles' extensions are connected, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
+The settings window has two tabs: General, in two columns (the browser, Chrome or Safari; login item, default browser, Accessibility, the version with Check for Updates…; Chrome's launch flags, which profiles' extensions are connected, and Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions) and Router (the rules). While it is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
 Logs go to the unified log under subsystem `com.artifact.monochrome`:
 
@@ -167,13 +196,13 @@ Logs go to the unified log under subsystem `com.artifact.monochrome`:
 ~/Code/monochrome/uninstall.sh
 ```
 
-It removes the app, its login item, Dock tile, support folder and host registration, this project's App Shortcuts, and what earlier versions installed. Karabiner itself and other App Shortcuts stay. Then remove the extension in `chrome://extensions`, restart Chrome, and choose Chrome as the default browser in System Settings → Desktop & Dock.
+It removes the app, its login item, Dock tile, settings, support folder and host registration, the Safari relay's app group folder, this project's Chrome and Safari App Shortcuts, and what earlier versions installed. Karabiner itself and other App Shortcuts stay. The Safari extension goes with the app. Then remove the extension in `chrome://extensions`, restart Chrome (and Safari, for its App Shortcuts), and choose a default browser in System Settings → Desktop & Dock.
 
 ## Releases and the Web Store
 
-- **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, builds, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
+- **The app** is released as a zip on GitHub by `make release VERSION=<version>`: it sets the version in `project.yml` and `manifest.json`, archives, has Xcode sign the archive with the team's cloud-managed Developer ID certificate and submit it to Apple's notary service, waits for the stapled app, checks it with `spctl`, writes `dist/Monochrome-app-<version>.zip` and regenerates `appcast.xml`, then prints the `gh release create` and the commit that publish. The v1.0 zip predates the app installing itself, so it does not register the native messaging host; a release built from this version does.
 - **Updates** come through Sparkle: the app checks `appcast.xml` on `main` (raw.githubusercontent.com) once a day and from Check for Updates… in its menu and on the General tab, and installs the zip the appcast names. Entries are signed with an EdDSA key in the keychain of the Mac that releases, made by Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `project.yml`, so a release from another Mac needs that key exported from this one. Sparkle 2.10.1 is a Swift package dependency in `project.yml`; `generate_appcast` comes from its checkout under `build/SourcePackages`. An update found by the daily check brings the app forward for its alert, since it has no windows otherwise.
-- **The extension** is packed by `store/pack.sh` into `dist/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
+- **The extension** is packed by `store/pack.sh` into `dist/store/monochrome-extension-<version>.zip`, without the app, tests, docs, scripts or the manifest's `key`, which the store refuses. The store assigned the ID in `store/id` on the first upload. To make the unpacked extension the same extension as the store's, install the store's copy once and run `store/adopt-key.sh <id>`, which copies the store's key into this manifest and reinstalls the app.
 - `store/listing.md` holds the listing text, permission justifications and privacy answers. The listing links Artifact's shared policy at artifact.com/privacy?Monochrome; `docs/privacy.md` is the detailed statement. `store/screenshots/` holds the switcher, profile HUD and Router tab from `--demo --backdrop`, `--demo-profiles --backdrop` and `--demo-settings --backdrop`, and the promo tiles from `swift store/tiles.swift`, all JPEG.
 
 ## Tests
@@ -182,7 +211,7 @@ It removes the app, its login item, Dock tile, support folder and host registrat
 npm install && npx playwright-core install chromium && make build && npm test
 ```
 
-The suite drives headless Chromium with the extension loaded. With the app built, it also spawns it in host mode against a private socket, and has the app write its host registration into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
+The suite drives headless Chromium with the extension loaded. With the app built, it also spawns it in host mode against a private socket, has the app write its host registration into a fresh Chromium profile and checks that the extension there reaches a socket standing in for the app, and runs the app's Safari readers on sample input (`--check-safari`), writing the Safari App Shortcuts to a scratch preferences domain that it deletes afterwards. `HEADFUL=1 npm test` adds the link hand-off from another app, which headless Chromium cannot receive.
 
 ## Not verified
 

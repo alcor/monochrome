@@ -68,6 +68,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     show()
     tabs?.selectedTabViewItemIndex = tab
     rulesModel?.selection = rulesModel?.rules.first?.id
+    if let anchor = Chrome.demoAnchor, let window {
+      window.setFrameOrigin(NSPoint(x: anchor.midX - window.frame.width / 2, y: anchor.midY - window.frame.height / 2))
+    }
     NSApp.activate(ignoringOtherApps: true)
     window?.makeKeyAndOrderFront(nil)
   }
@@ -98,6 +101,7 @@ final class GeneralModel: ObservableObject {
   @Published var isDefaultBrowser = false
   @Published var accessibility = AXIsProcessTrusted()
   @Published var chrome = ""
+  @Published var browser = Browser.current
   @Published var extensions = ""
   @Published var connected: [String] = []
   let connections: () -> String
@@ -114,10 +118,15 @@ final class GeneralModel: ObservableObject {
     launchAtLogin = SMAppService.mainApp.status == .enabled
     accessibility = AXIsProcessTrusted()
     isDefaultBrowser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) == Bundle.main.bundleURL
-    switch Chrome.runningWithFlags() {
-    case nil: chrome = "Not running"
-    case true?: chrome = "Running with its launch flags"
-    case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
+    browser = Browser.current
+    if browser == .safari {
+      chrome = Chrome.running == nil ? "Not running" : "Running"
+    } else {
+      switch Chrome.runningWithFlags() {
+      case nil: chrome = "Not running"
+      case true?: chrome = "Running with its launch flags"
+      case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
+      }
     }
     extensions = connections()
     connected = profiles()
@@ -130,6 +139,17 @@ final class GeneralModel: ObservableObject {
       log.error("login item: \(error.localizedDescription, privacy: .public)")
     }
     launchAtLogin = SMAppService.mainApp.status == .enabled
+  }
+
+  func setBrowser(_ browser: Browser) {
+    Browser.current = browser
+    // Safari's App Shortcuts, as the app writes them at launch; Safari applies them when it next starts.
+    if browser == .safari && !Install.portable { SafariShortcuts.write() }
+    refresh()
+  }
+
+  func installExtension() {
+    if browser == .safari { Safari.showExtensionSettings() } else { InstallExtensionPanel.shared.show() }
   }
 
   func makeDefault() {
@@ -153,6 +173,9 @@ struct GeneralSettings: View {
     HStack(alignment: .top, spacing: 0) {
       Form {
         Section {
+          Picker("Browser", selection: Binding(get: { model.browser }, set: model.setBrowser)) {
+            ForEach(Browser.allCases) { Text($0.name).tag($0) }
+          }
           Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
           Toggle("Profile hotkeys ⌃⌥← → and ⌃⌥1–9", isOn: $profileHotkeys)
           LabeledContent("Default browser") {
@@ -169,11 +192,11 @@ struct GeneralSettings: View {
         } header: {
           Text("Monochrome")
         } footer: {
-          Text("Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
+          Text("Browser is the one the shortcuts, panels and links from other apps work with. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
         }
       }
       Form {
-        Section("Chrome") {
+        Section(model.browser.name) {
           Text(model.chrome).foregroundStyle(.secondary)
         }
         Section {
@@ -182,11 +205,15 @@ struct GeneralSettings: View {
           } else {
             ForEach(model.connected, id: \.self) { Text($0).foregroundStyle(.secondary) }
           }
-          Button("Install Extension…") { InstallExtensionPanel.shared.show() }
+          Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
         } header: {
           Text("Extension")
         } footer: {
-          Text("The profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
+          if model.browser == .safari {
+            Text("The Safari profiles whose extension is talking to the app. Turn Monochrome on in Safari's Extensions settings and allow it on every website.")
+          } else {
+            Text("The profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
+          }
         }
       }
     }
@@ -498,10 +525,15 @@ private struct RuleForm: View {
           ForEach(profiles, id: \.self) { Text($0).tag($0) }
         }
         .disabled(rule.destination == .app)
+        // Safari has no tab groups: a rule already sending to one keeps it (it opens as a new tab in the
+        // front window there), but it is not offered.
         Picker("As", selection: $rule.destination) {
-          ForEach(Rule.Destination.allCases) { Text($0.title).tag($0) }
+          ForEach(Rule.Destination.allCases.filter { $0 != .group || Browser.current == .chrome || rule.destination == .group }) { Text($0.title).tag($0) }
         }
-        if rule.destination == .group { TextField("Group", text: $rule.group, prompt: Text("a tab group's title")) }
+        if rule.destination == .group {
+          TextField("Group", text: $rule.group, prompt: Text("a tab group's title"))
+          if Browser.current == .safari { Text("Safari has no tab groups: this opens a new tab in the front window.").font(.caption).foregroundStyle(.secondary) }
+        }
         if rule.destination == .app {
           LabeledContent("App") {
             HStack(spacing: 6) {

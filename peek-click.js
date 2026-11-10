@@ -15,6 +15,9 @@
   chrome.runtime.onMessage.addListener(msg => { if (msg.mini === 'locked') setLocked(msg.value); });
 
   addEventListener('click', e => {
+    // The extension reloaded under this page: leave the click to Chrome and to the new copy of this script,
+    // which this one would otherwise stop before it, and whose sendMessage would throw.
+    if (!chrome.runtime?.id) return;
     const a = e.target.closest?.('a[href]');
     if (!locked || !a || !/^https?:/.test(a.href)) return;
     const plain = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
@@ -27,6 +30,6 @@
 
   // window.open in a locked tab, relayed from the page's world by peek-open.js.
   addEventListener('message', e => {
-    if (e.source === window && typeof e.data?.monochromePeek === 'string') chrome.runtime.sendMessage({ mini: 'peek', url: e.data.monochromePeek });
+    if (e.source === window && typeof e.data?.monochromePeek === 'string' && chrome.runtime?.id) chrome.runtime.sendMessage({ mini: 'peek', url: e.data.monochromePeek });
   });
 })();

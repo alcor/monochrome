@@ -58,7 +58,8 @@ final class App: NSObject, NSApplicationDelegate {
   var safariServer: SocketServer?
   var safariSockets: [ObjectIdentifier: LineSocket] = [:] // the app extension's open sockets
   var allConnections: [Connection] = []
-  var connections: [Connection] { allConnections.filter { ($0.safari != nil) == (Browser.current == .safari) } }
+  // The active browser's (Browser.active); allConnections holds both browsers'.
+  var connections: [Connection] { allConnections.filter { ($0.safari != nil) == (Browser.active == .safari) } }
   var playerOwner: Connection?
   var sessions = Set<String>()
   var scrollTimer: Timer?
@@ -71,14 +72,15 @@ final class App: NSObject, NSApplicationDelegate {
     NSApp.mainMenu = mainMenu()
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
-    SettingsWindow.shared.connectedProfiles = { [weak self] in self?.connections.compactMap(ConnectedProfile.init) ?? [] }
+    SettingsWindow.shared.connectedProfiles = { [weak self] in self?.allConnections.compactMap(ConnectedProfile.init) ?? [] }
     SettingsWindow.shared.connectionsSummary = { [weak self] in
-      guard let self, !connections.isEmpty else { return "Not connected" }
-      let names = connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
-      let count = "\(connections.count) profile\(connections.count == 1 ? "" : "s")"
-      return "Connected in " + (names.count == connections.count ? names.joined(separator: ", ") : count)
+      guard let self, !allConnections.isEmpty else { return "Not connected" }
+      let names = allConnections.compactMap { c in c.safari.map { "\(c.profile ?? $0.label) in Safari" } ?? c.profile.map { c.browser == nil || c.browser == Chrome.chromeVariants[0].name ? $0 : "\($0) in \(c.browser!)" } }
+      let count = "\(allConnections.count) profile\(allConnections.count == 1 ? "" : "s")"
+      return "Connected in " + (names.count == allConnections.count ? names.joined(separator: ", ") : count)
     }
 
+    Chrome.onBrowserChange = { [weak self] in self?.merge() }
     tap.switcher = switcher
     tap.useSwitcher = { [weak self] in
       guard let self else { return false }
@@ -198,11 +200,11 @@ final class App: NSObject, NSApplicationDelegate {
     }
     Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
       guard let self else { return }
-      for c in allConnections where c.safari != nil && (Browser.current != .safari || Date().timeIntervalSince(c.safari!.lastHeard) > 150) {
+      for c in allConnections where c.safari != nil && Date().timeIntervalSince(c.safari!.lastHeard) > 150 {
         log.info("safari: \(c.safari!.label, privacy: .public) gone quiet")
         drop(c)
       }
-      if Browser.current == .safari && Safari.isRunning { connections.forEach { self.send(["ping": true], to: $0) } }
+      if Safari.isRunning { allConnections.filter { $0.safari != nil }.forEach { self.send(["ping": true], to: $0) } }
     }
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
@@ -210,14 +212,13 @@ final class App: NSObject, NSApplicationDelegate {
       allConnections.filter { $0.safari != nil }.forEach(drop)
     }
     center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { note in
-      guard Browser.current == .safari, (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == Safari.bundleId else { return }
+      guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == Safari.bundleId else { return }
       DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Safari.dispatch(["resend": true]) }
     }
-    if Browser.current == .safari && Safari.isRunning { Safari.dispatch(["resend": true]) }
+    if Safari.isRunning { Safari.dispatch(["resend": true]) }
   }
 
   func receiveSafari(_ message: [String: Any], profile: String) {
-    guard Browser.current == .safari else { return }
     let connection: Connection
     if let known = allConnections.first(where: { $0.safari?.profile == profile }) {
       connection = known
@@ -308,7 +309,7 @@ final class App: NSObject, NSApplicationDelegate {
       }
       profiles.go(to: index, in: list)
     }
-    let left = tries ?? (Browser.current == .safari ? 32 : 12)
+    let left = tries ?? (Browser.active == .safari ? 32 : 12)
     guard left > 0 else { return Chrome.open([url], activate: true) }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: left - 1) }
   }
@@ -336,7 +337,7 @@ final class App: NSObject, NSApplicationDelegate {
     guard Date().timeIntervalSince(pending.at) < 10 else { pendingSafari = nil; return }
     if pending.fronts[ObjectIdentifier(connection)] == front.id { return }
     pendingSafari = nil
-    for other in connections where other !== connection && other.profile == pending.name { other.profile = nil }
+    for other in allConnections where other !== connection && other.safari != nil && other.profile == pending.name { other.profile = nil }
     connection.profile = pending.name
     SafariProfiles.remember(pending.name, for: peer.profile)
     log.notice("profile: Safari profile \(peer.label, privacy: .public) learned as \(pending.name, privacy: .public)")
@@ -357,7 +358,7 @@ final class App: NSObject, NSApplicationDelegate {
     // At most every two seconds unless forced: with a single profile the titles carry no name, and
     // this would read the window list on every message for nothing. Safari names no profile in its
     // titles; its connections are told apart by Safari's own profile id instead.
-    guard Browser.current == .chrome, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
+    guard Browser.active == .chrome, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
     lastLearn = Date()
     for app in Chrome.runningApps {
       let browser = Chrome.name(of: app)

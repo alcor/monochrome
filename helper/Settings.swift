@@ -223,7 +223,7 @@ struct GeneralSettings: View {
         } header: {
           Text("Monochrome")
         } footer: {
-          Text("Browser is the one the shortcuts, panels and links from other apps work with. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
+          Text("Browser is where links from other apps open and the one started at login. ⌃Tab, the panels and the profile hotkeys work in Chrome and Safari alike, following whichever is in front. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
         }
       }
       Form {
@@ -255,9 +255,9 @@ struct GeneralSettings: View {
           }
         } footer: {
           if model.browser == .safari {
-            Text("The Safari profiles whose extension is talking to the app. Turn Monochrome on in Safari's Extensions settings and allow it on every website.")
+            Text("The Chrome and Safari profiles whose extension is talking to the app. In Safari, turn Monochrome on in the Extensions settings and allow it on every website.")
           } else {
-            Text("The profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
+            Text("The Chrome and Safari profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
           }
         }
       }

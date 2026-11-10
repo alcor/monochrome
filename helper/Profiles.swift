@@ -48,18 +48,19 @@ final class Profiles {
 
   // The names alone, from every running Chrome, for reading window titles; the menus are walked at
   // most every five seconds.
-  private static var cachedNames: [String] = [], namesRead = Date.distantPast
+  private static var cachedNames: [String] = [], namesRead = Date.distantPast, namesBrowser = Browser.chrome
   static func names() -> [String] {
-    if Date().timeIntervalSince(namesRead) > 5 {
+    if Date().timeIntervalSince(namesRead) > 5 || namesBrowser != Browser.active {
       cachedNames = Array(Set(Chrome.runningApps.flatMap { read($0).map(\.name) }))
       namesRead = Date()
+      namesBrowser = Browser.active
     }
     return cachedNames
   }
 
   // The Profiles menu's items up to its first separator; after that come Edit… and Add Profile….
   static func read(_ chrome: NSRunningApplication? = Chrome.running) -> [Profile] {
-    if Browser.current == .safari { return SafariProfiles.read(chrome) }
+    if Browser.active == .safari { return SafariProfiles.read(chrome) }
     guard let chrome else { return [] }
     let app = AXUIElementCreateApplication(chrome.processIdentifier)
     func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
@@ -91,7 +92,7 @@ final class Profiles {
   func go(to index: Int, in list: [Profile]? = nil) {
     let profiles = list ?? Self.read()
     guard profiles.indices.contains(index) else { return }
-    if Browser.current == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
+    if Browser.active == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
     show(profiles, index: index)
   }
 

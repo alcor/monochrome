@@ -12,6 +12,7 @@ INSTALLED := $(HOME)/Applications/Monochrome.app
 SPARKLE_BIN := $(DERIVED)/SourcePackages/artifacts/sparkle/Sparkle/bin
 ARCHIVE := $(DERIVED)/Monochrome.xcarchive
 NOTARIZED := $(DERIVED)/notarized/Monochrome.app
+LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 .PHONY: project build install run test pack release clean
 
@@ -25,12 +26,18 @@ build: project
 
 # By process, not by bundle id: "tell application id ... to quit" resolves the id to the newest bundle,
 # the one just built, and launches that copy to quit it.
+# The build in build/ is unregistered once copied: while macOS knows two copies of the Safari app
+# extension, Safari can keep running the build's and refuse the installed one ("other version in use"),
+# and the app's messages to Safari then fail.
 install: build
 	pkill -x Monochrome 2>/dev/null || true
 	sleep 0.5
 	mkdir -p "$(HOME)/Applications"
 	rm -rf "$(INSTALLED)"
 	ditto "$(APP)" "$(INSTALLED)"
+	pluginkit -r "$(APP)/Contents/PlugIns/Monochrome Extension.appex" 2>/dev/null || true
+	$(LSREGISTER) -u "$(APP)" 2>/dev/null || true
+	$(LSREGISTER) -f "$(INSTALLED)"
 	open "$(INSTALLED)"
 	@echo "installed: $(INSTALLED) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
 

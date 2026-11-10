@@ -1,4 +1,4 @@
-// The bar in the top-right of a mini browser page: an address button (🔗, or ⌘L), "Open in Chrome" (or Safari) and
+// The bar in the top-right of a mini browser page: an address button (🔗, or ⌘L), a reader button (¶, docs/tldr.md), "Open in Chrome" (or Safari) and
 // ▾ to pick a window or tab group, labelled with whatever shortcuts are set for them. Chrome's popup
 // windows have no address bar, so ⌘L opens an address field with the URL selected, ready to copy;
 // Enter goes to a URL or search, Esc closes it. Injected by mini-browser.js on each page load inside a
@@ -17,7 +17,7 @@
       .bar:hover { opacity: 1; }
       button { all: unset; cursor: default; padding: 7px 10px; }
       button:hover { background: rgba(255,255,255,.12); }
-      .caret, .open { border-left: 1px solid rgba(255,255,255,.15); }
+      .caret, .open, .reader { border-left: 1px solid rgba(255,255,255,.15); }
       .caret { padding: 7px 8px; }
       kbd { font: inherit; opacity: .55; margin-left: 6px; }
       .menu { position: absolute; right: 0; top: 34px; min-width: 200px; padding: 4px; border-radius: 9px;
@@ -33,6 +33,7 @@
     </style>
     <div class="bar">
       <button class="url" title="Address (⌘L)">🔗</button>
+      <button class="reader" title="Reader">¶</button>
       <button class="open">Open in Chrome<kbd></kbd></button>
       <button class="caret" title="Open in…">▾</button>
     </div>
@@ -105,6 +106,7 @@
   });
 
   root.querySelector('.url').onclick = showAddress;
+  root.querySelector('.reader').onclick = () => chrome.runtime.sendMessage({ tldr: 'toggle' });
   root.querySelector('.open').onclick = () => move();
   root.querySelector('.caret').onclick = toggleMenu;
   chrome.runtime.onMessage.addListener(msg => {

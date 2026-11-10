@@ -93,6 +93,7 @@ function helperMessage(raw) {
   else if (msg.resend) helperHello(); // the app restarted under a host that stayed up
   else if (msg.focusFront) focusFront().catch(console.error); // Safari: the app switched to this profile
   else if (msg.omnibox) omniboxFromHelper(msg.omnibox).catch(console.error);
+  else if (msg.tldr) tldrFromHelper(msg.tldr);
 }
 
 // This profile's last focused normal window to the front: how the app switches to a Safari profile
@@ -112,6 +113,7 @@ async function miniFromHelper({ window, action, to, text }) {
   if (action === 'open') await moveToMain(tab.id);
   else if (action === 'move') await moveToMain(tab.id, to);
   else if (action === 'go') await miniGo(tab.id, text);
+  else if (action === 'reader') await tldrToggle(tab.id);
 }
 
 // mini browser windows: where they are and what's in them, which of them are peek browsers and over which

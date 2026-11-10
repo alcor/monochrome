@@ -122,6 +122,9 @@
     },
     "mini-open-in": {
       "description": "Mini browser: open in window or tab group… (Monochrome handles Shift+Command+O itself; this is the fallback)"
+    },
+    "tldr": {
+      "description": "Reader: the page's content with a summary first (Monochrome handles Option+Shift+R itself; this is the fallback)"
     }
   }
 }

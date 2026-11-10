@@ -93,7 +93,7 @@ final class Profiles {
     let profiles = list ?? Self.read()
     guard profiles.indices.contains(index) else { return }
     if Browser.active == .safari { onSafari(profiles[index]) } else { AXUIElementPerformAction(profiles[index].item, kAXPressAction as CFString) }
-    show(profiles, index: index)
+    if Prefs.profileHUD { show(profiles, index: index) }
   }
 
   private func show(_ profiles: [Profile], index: Int) {

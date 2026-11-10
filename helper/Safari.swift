@@ -145,18 +145,20 @@ enum SafariProfiles {
 // allowed to reach other apps' data, and is logged when refused. Safari reads them when it starts.
 enum SafariShortcuts {
   static let domain = Safari.bundleId
-  static let shortcuts = ["Show Sidebar": "@s", "Hide Sidebar": "@s", "Save As…": "@$s",
-                          "Show Next Tab": "@~\u{F701}", "Show Previous Tab": "@~\u{F700}"]
+  static let sidebarShortcuts = ["Show Sidebar": "@s", "Hide Sidebar": "@s", "Save As…": "@$s"]
+  static let tabShortcuts = ["Show Next Tab": "@~\u{F701}", "Show Previous Tab": "@~\u{F700}"]
+  static var shortcuts: [String: String] { sidebarShortcuts.merging(tabShortcuts) { a, _ in a } }
 
   // Through CFPreferences, so cfprefsd puts them where the domain lives (Safari's container for
-  // com.apple.Safari) and the result of the write is known. Returns whether they are in place.
+  // com.apple.Safari) and the result of the write is known. Returns whether they are in place. The two
+  // Settings → Tabs switches take their pair out instead, as Install.setChromeShortcuts does.
   @discardableResult
   static func write(domain: String = domain) -> Bool {
     let key = "NSUserKeyEquivalents" as CFString, app = domain as CFString
-    var keys = CFPreferencesCopyAppValue(key, app) as? [String: String] ?? [:]
-    if shortcuts.allSatisfy({ keys[$0.key] == $0.value }) { return true }
-    keys.merge(shortcuts) { _, new in new }
-    CFPreferencesSetAppValue(key, keys as CFDictionary, app)
+    let keys = CFPreferencesCopyAppValue(key, app) as? [String: String] ?? [:]
+    let (want, drop) = Install.split(sidebarShortcuts, tabShortcuts)
+    guard let next = Install.apply(keys, want: want, drop: drop) else { return true }
+    CFPreferencesSetAppValue(key, next as CFDictionary, app)
     let ok = CFPreferencesAppSynchronize(app)
     if ok { log.notice("install: App Shortcuts set for \(domain, privacy: .public); Safari applies them when it next starts") }
     else { log.error("install: could not write App Shortcuts to \(domain, privacy: .public); macOS may be guarding Safari's container") }

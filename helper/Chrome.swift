@@ -13,7 +13,7 @@ import UserNotifications
 // came forward. Everything that follows "Chrome" below (the front app check, its windows over the
 // window list and Accessibility, opening links) follows Safari instead while that is Safari, and
 // profiles come from Safari's File menu (Safari.swift).
-// `current` is the setting on the settings window's General tab: the browser links from other apps open
+// `current` is the setting on the settings window's Browser tab: the browser links from other apps open
 // in, and the one started at login. The launch flags and the Dock tile stay Chrome's. Kept in the app's
 // defaults; Chrome until changed.
 enum Browser: String, CaseIterable, Identifiable {
@@ -22,10 +22,10 @@ enum Browser: String, CaseIterable, Identifiable {
   var name: String { self == .chrome ? "Chrome" : "Safari" }
 
   static var current: Browser {
-    get { UserDefaults.standard.string(forKey: "browser").flatMap(Browser.init(rawValue:)) ?? .chrome }
+    get { Prefs.store.string(forKey: "browser").flatMap(Browser.init(rawValue:)) ?? .chrome }
     set {
       let before = active
-      UserDefaults.standard.set(newValue.rawValue, forKey: "browser")
+      Prefs.store.set(newValue.rawValue, forKey: "browser")
       if active != before { Chrome.onBrowserChange() }
     }
   }
@@ -51,6 +51,9 @@ enum Chrome {
   static var variants: [Variant] { Browser.active == .safari ? [safari] : chromeVariants }
   static var bundleIds: [String] { variants.map(\.bundleId) }
   static let features = ["OmniboxForceAllowedToBeDefault"]
+  // The flags Chrome is started with: none when Settings → Browser → Address bar opens the matching
+  // history page is off.
+  static var launchArguments: [String] { Prefs.launchFlags ? ["--enable-features=" + features.joined(separator: ",")] : [] }
 
   static func isChrome(_ bundleId: String?) -> Bool { bundleId.map(bundleIds.contains) ?? false }
   static func name(of app: NSRunningApplication) -> String { variants.first { $0.bundleId == app.bundleIdentifier }?.name ?? "Chrome" }
@@ -107,7 +110,7 @@ enum Chrome {
     guard let appURL = running?.bundleURL ?? bundleIds.lazy.compactMap({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }).first else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = activate
-    if running == nil && Browser.active == .chrome { configuration.arguments = ["--enable-features=" + features.joined(separator: ",")] }
+    if running == nil && Browser.active == .chrome { configuration.arguments = launchArguments }
     if urls.isEmpty {
       NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     } else {
@@ -128,7 +131,7 @@ enum Chrome {
         return
       }
       let configuration = NSWorkspace.OpenConfiguration()
-      configuration.arguments = ["--enable-features=" + features.joined(separator: ",")]
+      configuration.arguments = launchArguments
       NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     }
     start(after: 0)
@@ -138,7 +141,7 @@ enum Chrome {
   // instead of silently doing nothing.
   static var warnedPid: pid_t = 0
   static func warnIfStartedWithoutFlags() {
-    guard Browser.current == .chrome, let running = runningChrome, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
+    guard Browser.current == .chrome, Prefs.launchFlags, let running = runningChrome, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
     warnedPid = running.processIdentifier
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in
@@ -150,9 +153,11 @@ enum Chrome {
     }
   }
 
-  // nil: not running. false: started some other way, without the flags.
+  // nil: not running. false: started some other way, without the flags. With the flags turned off in
+  // Settings there is nothing missing, so a running Chrome counts as having them.
   static func runningWithFlags() -> Bool? {
     guard let running = runningChrome else { return nil }
+    if !Prefs.launchFlags { return true }
     let ps = Process()
     ps.executableURL = URL(fileURLWithPath: "/bin/ps")
     ps.arguments = ["-o", "args=", "-p", String(running.processIdentifier)]

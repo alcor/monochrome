@@ -6,13 +6,16 @@
 //                  Browser setting is Safari: SafariShortcuts in Safari.swift), Launch Services registration,
 //                  and removal of what earlier versions installed (Arc for Chrome, Chrome Launcher, the
 //                  Karabiner rule)
-//   once per path  the Dock tile in Chrome's place and the default-browser question
+//   once per path  the login item, the Dock tile in Chrome's place and the default-browser question
+//                  (recorded in loginItemFor, dockTileFor and defaultBrowserAskedFor), so turning one of
+//                  them off in Settings holds across launches
 //
-// The login item is registered by App at launch, as before. Launched with --portable, the app does the
+// Launched with --portable, the app does the
 // host manifests only: no login item, Dock tile, default browser or App Shortcuts, for a test run that
 // leaves the Mac as it was apart from Chrome's NativeMessagingHosts folders.
 import AppKit
 import CoreServices
+import ServiceManagement
 
 enum Install {
   static let hostName = "monochrome_helper"
@@ -30,6 +33,10 @@ enum Install {
     if Browser.current == .safari { SafariShortcuts.write() }
     removeEarlierVersions()
     let path = Bundle.main.bundleURL.path
+    if defaults.string(forKey: "loginItemFor") != path {
+      defaults.set(path, forKey: "loginItemFor")
+      do { try SMAppService.mainApp.register() } catch { log.error("install: login item: \(error.localizedDescription, privacy: .public)") }
+    }
     // The tile is there to start Chrome with its flags; Safari takes none.
     if Browser.current == .chrome && defaults.string(forKey: "dockTileFor") != path { placeDockTile(path: path) }
     if defaults.string(forKey: "defaultBrowserAskedFor") != path {
@@ -97,19 +104,39 @@ enum Install {
   // ⌘S collapses and expands the vertical tab sidebar, as in Arc; Save Page As moves to ⇧⌘S; ⌥⌘↓ and
   // ⌥⌘↑ move down and up the tab list (U+F701 and U+F700 are the arrow keys' characters). Chrome reads
   // them when it starts. Chrome's own "make me the default browser" prompt is turned off, since this
-  // app holds that role.
+  // app holds that role. Each pair can be turned off in Settings → Tabs (shortcutSidebar, shortcutTabs):
+  // its entries are then removed, but only where they still hold these values, so a shortcut someone
+  // set to something else is left alone.
   static let chromeDomains = ["com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.dev", "com.google.Chrome.canary", "org.chromium.Chromium"]
-  static let shortcuts = ["Collapse Vertical Tabs": "@s", "Save Page As…": "@$s",
-                          "Select Next Tab": "@~\u{F701}", "Select Previous Tab": "@~\u{F700}"]
+  static let sidebarShortcuts = ["Collapse Vertical Tabs": "@s", "Save Page As…": "@$s"]
+  static let tabShortcuts = ["Select Next Tab": "@~\u{F701}", "Select Previous Tab": "@~\u{F700}"]
+  static var shortcuts: [String: String] { sidebarShortcuts.merging(tabShortcuts) { a, _ in a } }
+
+  // The entries wanted and the ones to take out, by the two settings.
+  static func split(_ sidebar: [String: String], _ tabs: [String: String]) -> (want: [String: String], drop: [String: String]) {
+    var want: [String: String] = [:], drop: [String: String] = [:]
+    (Prefs.shortcutSidebar ? { want.merge(sidebar) { a, _ in a } } : { drop.merge(sidebar) { a, _ in a } })()
+    (Prefs.shortcutTabs ? { want.merge(tabs) { a, _ in a } } : { drop.merge(tabs) { a, _ in a } })()
+    return (want, drop)
+  }
+
+  // A key-equivalents dictionary with the wanted entries in and the dropped ones out (only where they
+  // still hold this app's value); nil when it already is.
+  static func apply(_ keys: [String: String], want: [String: String], drop: [String: String]) -> [String: String]? {
+    var next = keys.merging(want) { _, new in new }
+    for (title, value) in drop where next[title] == value { next[title] = nil }
+    return next == keys ? nil : next
+  }
 
   static func setChromeShortcuts() {
     for (domain, variant) in zip(chromeDomains, Chrome.chromeVariants) {
       guard domain == chromeDomains[0] || NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId) != nil,
             let prefs = UserDefaults(suiteName: domain) else { continue }
-      var keys = prefs.dictionary(forKey: "NSUserKeyEquivalents") as? [String: String] ?? [:]
-      if shortcuts.allSatisfy({ keys[$0.key] == $0.value }), prefs.object(forKey: "DefaultBrowserSettingEnabled") as? Bool == false { continue }
-      keys.merge(shortcuts) { _, new in new }
-      prefs.set(keys, forKey: "NSUserKeyEquivalents")
+      let keys = prefs.dictionary(forKey: "NSUserKeyEquivalents") as? [String: String] ?? [:]
+      let (want, drop) = split(sidebarShortcuts, tabShortcuts)
+      let next = apply(keys, want: want, drop: drop)
+      if next == nil, prefs.object(forKey: "DefaultBrowserSettingEnabled") as? Bool == false { continue }
+      if let next { prefs.set(next, forKey: "NSUserKeyEquivalents") }
       prefs.set(false, forKey: "DefaultBrowserSettingEnabled")
       log.notice("install: App Shortcuts set for \(domain, privacy: .public)")
     }

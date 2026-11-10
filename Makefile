@@ -26,18 +26,21 @@ build: project
 
 # By process, not by bundle id: "tell application id ... to quit" resolves the id to the newest bundle,
 # the one just built, and launches that copy to quit it.
-# The build in build/ is unregistered once copied: while macOS knows two copies of the Safari app
-# extension, Safari can keep running the build's and refuse the installed one ("other version in use"),
-# and the app's messages to Safari then fail.
+# The build in build/ is unregistered first (xcodebuild registers it): while macOS knows two copies,
+# Safari can keep running the build's app extension and refuse the installed one ("other version in
+# use"), and the Safari extension, finding the app quit, starts the app by bundle id, which can pick
+# the build's copy. A second pkill stops any copy started that way before the new one opens.
 install: build
+	pluginkit -r "$(APP)/Contents/PlugIns/Monochrome Extension.appex" 2>/dev/null || true
+	$(LSREGISTER) -u "$(APP)" 2>/dev/null || true
 	pkill -x Monochrome 2>/dev/null || true
 	sleep 0.5
 	mkdir -p "$(HOME)/Applications"
 	rm -rf "$(INSTALLED)"
 	ditto "$(APP)" "$(INSTALLED)"
-	pluginkit -r "$(APP)/Contents/PlugIns/Monochrome Extension.appex" 2>/dev/null || true
-	$(LSREGISTER) -u "$(APP)" 2>/dev/null || true
 	$(LSREGISTER) -f "$(INSTALLED)"
+	pkill -x Monochrome 2>/dev/null || true
+	sleep 0.5
 	open "$(INSTALLED)"
 	@echo "installed: $(INSTALLED) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
 

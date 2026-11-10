@@ -197,13 +197,7 @@ private struct ProfileCard: View {
     let name = parts.first.map { $0.trimmingCharacters(in: .whitespaces) } ?? profile.name
     let account = parts.count > 1 ? parts[1].replacingOccurrences(of: ")", with: "") : ""
     VStack(spacing: 6) {
-      ZStack {
-        Circle().fill(color)
-        Text(String(name.prefix(1)).uppercased())
-          .font(.system(size: Profiles.avatar * 0.45, weight: .semibold))
-          .foregroundStyle(.white)
-      }
-      .frame(width: Profiles.avatar, height: Profiles.avatar)
+      ProfileAvatar(name: profile.name, initialOf: name, size: Profiles.avatar)
       .padding(8)
       .background { if selected { well.fill(.black.opacity(0.5)) } }
       VStack(spacing: 1) {
@@ -213,7 +207,27 @@ private struct ProfileCard: View {
       .frame(width: Profiles.avatar + 16 + Profiles.gap - 4, height: Profiles.labelHeight)
     }
   }
+}
 
-  // A hue from the name, steady across launches.
-  private var color: Color { ProfileAvatar.hue(profile.name) }
+// A profile's initial on a hue hashed from its name, steady across launches. The profile menus carry
+// no images over Accessibility, and macOS refuses Chrome's own profile pictures to other apps.
+struct ProfileAvatar: View {
+  let name: String
+  var initialOf: String? // the part of the name to take the initial from, when not the whole
+  let size: CGFloat
+
+  var body: some View {
+    ZStack {
+      Circle().fill(Self.hue(name))
+      Text(String((initialOf ?? name).prefix(1)).uppercased())
+        .font(.system(size: size * 0.45, weight: .semibold))
+        .foregroundStyle(.white)
+    }
+    .frame(width: size, height: size)
+  }
+
+  static func hue(_ name: String) -> Color {
+    let hash = name.unicodeScalars.reduce(5381) { ($0 << 5) &+ $0 &+ Int($1.value) }
+    return Color(hue: Double(abs(hash) % 360) / 360, saturation: 0.55, brightness: 0.75)
+  }
 }

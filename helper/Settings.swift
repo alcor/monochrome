@@ -102,27 +102,23 @@ struct ConnectedProfile: Identifiable {
   let name: String
   let browser: String
   let appIcon: NSImage
-  let look: ProfileLook
   var id: String { browser + "\u{0}" + name }
 }
 
 extension ConnectedProfile {
   // nil until Chrome's window titles have told the app the profile's name.
   init?(_ connection: Connection) {
-    let variant: Chrome.Variant, look: ProfileLook
+    let variant: Chrome.Variant
     if let safari = connection.safari {
       variant = Chrome.safari
       name = connection.profile ?? safari.label
-      look = ProfileLook()
     } else {
       guard let profile = connection.profile else { return nil }
       let index = Chrome.chromeVariants.firstIndex { $0.name == connection.browser } ?? 0
       variant = Chrome.chromeVariants[index]
       name = profile
-      look = ChromeAvatars.look(folder: Install.hostFolders[index], title: profile)
     }
     browser = variant.name
-    self.look = look
     appIcon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId).map { NSWorkspace.shared.icon(forFile: $0.path) }
       ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)!
   }
@@ -228,7 +224,7 @@ struct GeneralSettings: View {
             ForEach(model.connected) { profile in
               HStack(spacing: 8) {
                 Image(nsImage: profile.appIcon).resizable().frame(width: 18, height: 18).help(profile.browser)
-                ProfileAvatar(name: profile.name, look: profile.look, size: 18)
+                ProfileAvatar(name: profile.name, size: 18)
                 Text(profile.name).foregroundStyle(.secondary)
               }
             }

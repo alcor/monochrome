@@ -52,8 +52,7 @@ enum Install {
   // MARK: Native messaging host
 
   // The folder each Chrome reads host manifests from, relative to Application Support. Stable always
-  // (it may not have run yet); the others only when they have run on this Mac. Same order as
-  // Chrome.chromeVariants: the Settings list finds a variant's folder by its index.
+  // (it may not have run yet); the others only when they have run on this Mac.
   static let hostFolders = ["Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary", "Chromium"]
 
   // The extension IDs allowed to connect, written to Resources/extension-ids.json by the project's run

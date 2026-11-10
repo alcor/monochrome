@@ -85,6 +85,25 @@ enum Chrome {
     }
   }
 
+  // Quits the Chrome that is missing its flags and starts the same one again with them. terminate() is
+  // an ordinary quit, so Chrome can still stop it (a download in progress asks first); after 30 seconds
+  // the relaunch is dropped rather than forcing it.
+  static func relaunchWithFlags() {
+    guard let app = running, let appURL = app.bundleURL else { return }
+    app.terminate()
+    func start(after attempt: Int) {
+      guard app.isTerminated else {
+        if attempt < 120 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { start(after: attempt + 1) } }
+        else { log.info("relaunch: \(name(of: app), privacy: .public) did not quit within 30 seconds") }
+        return
+      }
+      let configuration = NSWorkspace.OpenConfiguration()
+      configuration.arguments = ["--enable-features=" + features.joined(separator: ",")]
+      NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+    }
+    start(after: 0)
+  }
+
   // A Chrome that was started some other way is missing its flags. Say so, once per Chrome launch,
   // instead of silently doing nothing.
   static var warnedPid: pid_t = 0

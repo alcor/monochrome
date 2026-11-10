@@ -173,6 +173,16 @@ final class GeneralModel: ObservableObject {
     if browser == .safari { Safari.showExtensionSettings() } else { InstallExtensionPanel.shared.show() }
   }
 
+  func relaunchChrome() {
+    let alert = NSAlert()
+    alert.messageText = "Relaunch Chrome?"
+    alert.informativeText = "Chrome quits and opens again with its launch flags. Its windows come back if Chrome's Settings → On startup is set to Continue where you left off."
+    alert.addButton(withTitle: "Relaunch")
+    alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+    Chrome.relaunchWithFlags()
+  }
+
   func makeDefault() {
     Install.makeDefaultBrowser { [weak self] in self?.refresh() }
   }
@@ -229,7 +239,10 @@ struct GeneralSettings: View {
               }
             }
           }
-          Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
+          HStack {
+            Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
+            if model.browserWarning != nil { Button("Relaunch Chrome…", action: model.relaunchChrome) }
+          }
         } header: {
           HStack(spacing: 4) {
             Text("Browser Profiles")

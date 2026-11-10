@@ -1,7 +1,7 @@
 // Mini browsers' bars and the peek browser's shade, drawn here instead of in the page. The extension sends the mini
 // windows (where they are, their page, and for a peek browser the window it's over) and the places a
 // mini browser can be moved to; this side finds each one's Chrome window on screen and keeps a glass bar
-// on its top right: address (⌘L), Open in Chrome, and ▾ for a window, tab group or another profile. The
+// on its top right: address (⌘L), reader, Open in Chrome, and ▾ for a window, tab group or another profile. The
 // bar's actions go back over the bridge; another profile is the app's own link delivery. Under a peek browser sits a shade the size and shape of the window it covers,
 // ordered just below the peek browser's window; a click on the shade closes the peek browser. Both only show while
 // Chrome is in front, and follow their windows from the window list, like the mini player.
@@ -161,7 +161,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   let panel = KeyablePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
   private let content = NSView()
   private let glass = GlassBackdrop(rootView: PillGlass())
-  private let link = FirstClickButton(), open = FirstClickButton(), caret = FirstClickButton()
+  private let link = FirstClickButton(), reader = FirstClickButton(), open = FirstClickButton(), caret = FirstClickButton()
   private let address = NSTextField()
   private var url = "", targets: [Target] = [], otherProfiles: [String] = []
   private var openWidth: CGFloat = 0 // the Open button's own width; its frame is padded from it
@@ -180,7 +180,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     panel.contentView = content
     content.addSubview(glass)
 
-    for (button, symbol, selector) in [(link, "link", #selector(pressedLink)), (caret, "chevron.down", #selector(pressedCaret))] {
+    for (button, symbol, selector) in [(link, "link", #selector(pressedLink)), (reader, "text.alignleft", #selector(pressedReader)), (caret, "chevron.down", #selector(pressedCaret))] {
       button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
       button.target = self
       button.action = selector
@@ -188,7 +188,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     open.target = self
     open.action = #selector(pressedOpen)
     open.font = .systemFont(ofSize: 12, weight: .medium)
-    for button in [link, open, caret] {
+    for button in [link, reader, open, caret] {
       button.isBordered = false
       button.contentTintColor = .labelColor
       content.addSubview(button)
@@ -219,9 +219,10 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     }
     caret.toolTip = "Open in…" + (shortcuts["mini-open-in"].map { " (" + $0 + ")" } ?? "")
     link.toolTip = "Address (⌘L)"
+    reader.toolTip = "Reader (⌥⇧R)"
   }
 
-  private var width: CGFloat { addressShown ? Self.addressWidth : 34 + openWidth + 16 + 30 }
+  private var width: CGFloat { addressShown ? Self.addressWidth : 34 + 28 + openWidth + 16 + 30 }
 
   func place(over window: NSRect) {
     titleBar = NSRect(x: window.minX, y: window.maxY - Self.titleBar, width: window.width, height: Self.titleBar)
@@ -241,7 +242,8 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     content.frame = NSRect(x: 0, y: 0, width: width + 2 * r, height: h + 2 * r)
     glass.frame = NSRect(x: r, y: r, width: width, height: h)
     link.frame = NSRect(x: r + 4, y: r, width: 30, height: h)
-    open.frame = NSRect(x: r + 34, y: r, width: openWidth + 16, height: h)
+    reader.frame = NSRect(x: r + 32, y: r, width: 28, height: h)
+    open.frame = NSRect(x: r + 62, y: r, width: openWidth + 16, height: h)
     caret.frame = NSRect(x: r + width - 30, y: r, width: 26, height: h)
     address.frame = NSRect(x: r + 12, y: r + (h - 16) / 2, width: width - 24, height: 16)
   }
@@ -274,7 +276,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   // ⌘L: the page's address, selected and ready to copy; Enter goes to a URL or search, Esc closes.
   func showAddress() {
     addressShown = true
-    for button in [link, open, caret] { button.isHidden = true }
+    for button in [link, reader, open, caret] { button.isHidden = true }
     address.isHidden = false
     address.stringValue = url
     panel.makeKey()
@@ -285,7 +287,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   private func hideAddress() {
     addressShown = false
     address.isHidden = true
-    for button in [link, open, caret] { button.isHidden = false }
+    for button in [link, reader, open, caret] { button.isHidden = false }
     if panel.isKeyWindow { panel.resignKey() }
   }
 
@@ -306,6 +308,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
   }
 
   @objc private func pressedLink() { showAddress() }
+  @objc private func pressedReader() { action(["window": id, "action": "reader"]) } // the reader in this mini browser's page (docs/tldr.md)
   @objc private func pressedOpen() { action(["window": id, "action": "open"]) }
   @objc private func pressedCaret() { showMenu() }
 

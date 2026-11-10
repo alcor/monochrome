@@ -8,8 +8,8 @@ A plan for the settings window (`helper/Settings.swift`): which tabs it has, whi
 
 The settings window has two tabs and two switches (`profileHotkeys`, `omnibox`). The README describes about thirty features. The plan gives each feature that can be switched a row, so the window is both the list of what Monochrome does and the place to turn a part of it off.
 
-- **Eight tabs:** General, Browser, Profiles, Tabs, Mini Browsers, Command Bar, Player, Router. 36 controls outside Router, which keeps its rules editor.
-- **25 settings keys**, all in the app's defaults. 16 are read by the app alone. 9 are behaviour of the extension, and the app sends those to every connected copy as one `prefs` message.
+- **Eight tabs:** General, Browser, Profiles, Tabs, Mini Browsers, Command Bar, Player, Router. 38 controls outside Router, which keeps its rules editor.
+- **26 settings keys**, all in the app's defaults. 17 are read by the app alone. 9 are behaviour of the extension, and the app sends those to every connected copy as one `prefs` message.
 - **Every row carries its keys in the label and one descriptive line.** That is settled, below.
 - **The app is the one place settings are edited.** The extension's options page keeps the connection status, the Keyboard Shortcuts button and, only while the app is not connected, the locked group's title.
 - Every default is today's behaviour. A Mac that updates and touches nothing behaves as before.
@@ -95,7 +95,7 @@ Eight tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 - **Profiles** is the connected profiles and the keys that switch between them.
 - **Tabs** is the tab sidebar: locked tabs, tab order, ⌃Tab, and the App Shortcuts, which are all sidebar keys.
 - **Mini Browsers** holds mini and peek browsers, which are the same windows.
-- **Command Bar** is ⌘L and ⌘T.
+- **Command Bar** is ⌘L and ⌘T, and the reader's ⌥⇧R (`docs/tldr.md`), the other key that opens the app's own view over the page.
 - **Player** has two switches and the list of sites. It is its own tab because the site list is the advertisement and has no other home.
 - **Router** is unchanged apart from its empty-state text.
 
@@ -172,7 +172,7 @@ Notes on what each does when off:
 
 `peek` off: the extension tells every locked tab's catch script to stand down (the existing `{ mini: 'locked', value: false }` message), stops injecting it, and a foreground link from a locked tab becomes a new tab at the top. On again: it injects into every locked tab.
 
-### Command Bar: 4 controls
+### Command Bar: 6 controls
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
@@ -180,6 +180,8 @@ Notes on what each does when off:
 | ⌘T opens a new tab | T | on | `omniboxT` | `App.openOmnibox(newTab: true)` | From the command bar, with the most used sites listed |
 | Google suggestions | T | on | `omniboxSuggestions` | `model.onSuggest` in `App.setUpOmnibox` | What is typed goes to Google as it is typed |
 | Full Disk Access | S Open Settings…, shown when Browser is Safari or a Safari profile is connected | | none | whether `SafariHistory.databaseURL` is readable | For Safari's history and bookmarks |
+| Reader ⌥⇧R | T | on | `tldr` | `Tap.swift`, then `tap.onReader` in `App.swift` | Summary and text of the page; ⌥⇧R no longer types ‰ |
+| Summary | S On this Mac or Unavailable | | none | `ReaderModel.status()` (`Reader.swift`) | The model's state, from `ReaderModel.stateText` |
 
 ⌘L inside a mini browser is the bar's address field, not the command bar, and follows neither switch.
 
@@ -256,7 +258,7 @@ These get no row, with the reason:
 11. The options page disables the group field when `helperUp()`.
 12. With the app built, `Monochrome --prefs --defaults` prints the default `prefs` payload and it deep-equals `PREF_DEFAULTS`, so the two lists cannot drift.
 
-**Not covered by the suite.** The 16 app-only keys act in the event tap, the installer and Sparkle, which the tests cannot drive. Each needs a hand check: switch off, press the keys, see the browser get them. Nothing in Safari has been tried, as `docs/safari.md` records for every Safari feature.
+**Not covered by the suite.** The 17 app-only keys act in the event tap, the installer and Sparkle, which the tests cannot drive. Each needs a hand check: switch off, press the keys, see the browser get them. Nothing in Safari has been tried, as `docs/safari.md` records for every Safari feature.
 
 **Documents to update in the same PR.**
 

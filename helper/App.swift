@@ -57,6 +57,7 @@ final class App: NSObject, NSApplicationDelegate {
   let tap = Tap()
   let tracker = WindowTracker()
   let omnibox = OmniboxController()
+  let reader = Reader()
   var omniboxConnection: Connection?
   var omniboxRequest = 0
   var server: SocketServer?
@@ -128,6 +129,12 @@ final class App: NSObject, NSApplicationDelegate {
     }
     tap.onCommandT = { [weak self] in self?.openOmnibox(newTab: true) ?? false }
     tap.omniboxShown = { [weak self] in self?.omnibox.isVisible ?? false }
+    // ⌥⇧R: the reader in the tab in front, when the setting is on and that profile's extension is connected.
+    tap.onReader = { [weak self] in
+      guard let self, let front = frontConnection else { return false }
+      send(["tldr": ["op": "toggle"]], to: front)
+      return true
+    }
     setUpOmnibox()
     tap.onNewMiniBrowser = { [weak self] in
       guard let self, let front = frontConnection else { return false }
@@ -301,6 +308,7 @@ final class App: NSObject, NSApplicationDelegate {
   func drop(_ connection: Connection) {
     allConnections.removeAll { $0 === connection }
     if playerOwner === connection { playerOwner = nil; player.apply(nil) }
+    reader.drop(connection)
     merge()
   }
 
@@ -600,6 +608,9 @@ final class App: NSObject, NSApplicationDelegate {
     if let data = message["omniboxData"] as? [String: Any] { receiveOmnibox(data, from: connection) }
     if let favicons = message["omniboxFavicons"] as? [String: Any], connection === omniboxConnection, let icons = favicons["icons"] as? [String: Any] {
       for (page, data) in icons { if let icon = image(data as? String) { omnibox.model.icons[page] = icon } }
+    }
+    if let tldr = message["tldr"] as? [String: Any] { // the reader's model requests (Reader.swift)
+      reader.receive(tldr, from: connection) { [weak self, weak connection] in self?.send($0, to: connection) }
     }
     if message["settings"] != nil { SettingsWindow.shared.show() } // --settings, over the socket
     if let test = message["omniboxTest"] as? [String: Any] { testOmnibox(test) } // --omnibox, over the socket

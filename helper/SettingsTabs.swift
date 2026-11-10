@@ -344,6 +344,14 @@ struct CommandBarSettings: View {
         SettingToggle("⌘T opens a new tab", detail: "From the command bar, with the most used sites listed", symbol: "plus.square",
                       isOn: Prefs.binding(.omniboxT))
       }
+      // The reader (docs/tldr.md): another key that opens the app's own view over the page.
+      Section("Reader") {
+        SettingToggle("Reader", keys: "⌥⇧R", detail: "Summary and text of the page; ⌥⇧R no longer types ‰", symbol: "doc.plaintext",
+                      isOn: Prefs.binding(.tldr))
+        SettingRow("Summary", detail: ReaderModel.stateText, symbol: "sparkles") {
+          Text(ReaderModel.status()["model"] as? String == "apple" ? "On this Mac" : "Unavailable").foregroundStyle(.secondary)
+        }
+      }
     } right: {
       Section("Suggestions") {
         SettingToggle("Google suggestions", detail: "What is typed goes to Google as it is typed", symbol: "text.magnifyingglass", isOn: Prefs.binding(.omniboxSuggestions))

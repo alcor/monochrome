@@ -26,6 +26,7 @@
 //   --demo-settings [tab] [out.png] [dark]  the settings window on a tab (general, browser, tabs, mini,
 //                   command, player, router, or 0 to 6; Router when none) over a scratch defaults suite,
 //                   with sample rules and profiles; with out.png, drawn into that file from the view and quit
+//   --check-tldr    a reader summarize request on stdin; the model's pieces on stdout, one JSON object per line (Reader.swift)
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
 import AppKit
@@ -81,6 +82,9 @@ case "--prefs":
   exit(0)
 case "--check-safari":
   exit(SafariCheck.run(CommandLine.arguments.dropFirst(2).first))
+case "--check-tldr":
+  Task.detached { exit(await ReaderCheck.run()) }
+  dispatchMain()
 case "--routes":
   let rest = CommandLine.arguments.dropFirst(2)
   Routes.print(url: rest.first, from: rest.dropFirst().first)

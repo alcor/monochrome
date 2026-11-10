@@ -22,7 +22,7 @@ enum Pref: String, CaseIterable {
   // The app's alone.
   case openBrowserAtLaunch, launchFlags, profileArrows, profileDigits, profileHUD
   case shortcutSidebar, shortcutTabs, switcher, switcherPanel, switcherDelay, switcherCount
-  case miniHotkey, miniClick, omniboxL, omniboxT, omniboxSuggestions
+  case miniHotkey, miniClick, omniboxL, omniboxT, omniboxSuggestions, tldr
 
   static let sent: [Pref] = [.lockedTabs, .lockedGroup, .newTabsAtTop, .peek, .miniIdleHours, .routeDefault, .thumbnails, .player, .playerStopPopout]
 
@@ -92,6 +92,7 @@ enum Prefs {
   static var omniboxL: Bool { bool(.omniboxL) }
   static var omniboxT: Bool { bool(.omniboxT) }
   static var omniboxSuggestions: Bool { bool(.omniboxSuggestions) }
+  static var tldr: Bool { bool(.tldr) } // ⌥⇧R opens the reader (docs/tldr.md)
 
   // What goes to the extension: the nine sent keys with their current values.
   static var payload: [String: Any] {

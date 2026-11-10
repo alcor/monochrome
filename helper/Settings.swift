@@ -190,16 +190,25 @@ struct SettingRow<Control: View>: View {
     self.control = control
   }
 
+  // The symbol sits in a fixed-width column, so every title and description starts at one edge.
+  static var symbolWidth: CGFloat { 20 }
+  static var symbolSpacing: CGFloat { 8 }
+
   var body: some View {
     // The description runs under the control too, so a 60-character line fits a column.
     VStack(alignment: .leading, spacing: 2) {
-      HStack(spacing: 8) {
-        if let symbol { Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(.secondary) }
+      HStack(spacing: Self.symbolSpacing) {
+        if let symbol {
+          Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(.secondary).frame(width: Self.symbolWidth)
+        }
         keys.map { Text(title + "  ") + Text($0).foregroundColor(.secondary) } ?? Text(title)
         Spacer(minLength: 0)
         control()
       }
-      if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+      if let detail {
+        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          .padding(.leading, symbol == nil ? 0 : Self.symbolWidth + Self.symbolSpacing)
+      }
     }
   }
 }

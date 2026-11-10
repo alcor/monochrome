@@ -207,7 +207,7 @@ struct BrowserSettings: View {
         }
         SettingToggle("Open Chrome with Monochrome", detail: "So Chrome starts at login with its launch flags", symbol: "arrow.up.forward.app",
                       isOn: Prefs.binding(.openBrowserAtLaunch))
-        SettingToggle("Address bar opens history matches", detail: "Chrome launch flag; applies when Chrome starts from the Dock", symbol: "clock.arrow.circlepath",
+        SettingToggle("Address bar opens history matches", detail: "A launch flag, for Chrome started from the Dock tile", symbol: "clock.arrow.circlepath",
                       isOn: Prefs.binding(.launchFlags))
         StatusRow(title: "Dock tile", detail: "Takes Chrome's tile and starts Chrome with the flags", symbol: "dock.rectangle",
                   ok: model.dockTile, okText: "In the Dock", button: "Add to Dock", action: model.addDockTile)
@@ -259,7 +259,7 @@ struct TabsSettings: View {
         SettingToggle("New tabs open at the top", detail: "Directly under the locked tabs", symbol: "arrow.up.to.line", isOn: Prefs.binding(.newTabsAtTop))
       }
       Section("App Shortcuts") {
-        SettingToggle("Collapse the tab sidebar", keys: "⌘S", detail: "Save Page As moves to ⇧⌘S; applies when the browser restarts", symbol: "sidebar.left",
+        SettingToggle("Collapse the tab sidebar", keys: "⌘S", detail: "Save Page As moves to ⇧⌘S, after a browser restart", symbol: "sidebar.left",
                       isOn: Prefs.binding(.shortcutSidebar, then: model.applyShortcuts))
         SettingToggle("Next and previous tab", keys: "⌥⌘↓, ⌥⌘↑", detail: "Steps down and up the tab list, after a browser restart", symbol: "arrow.up.arrow.down",
                       isOn: Prefs.binding(.shortcutTabs, then: model.applyShortcuts))
@@ -339,7 +339,7 @@ struct CommandBarSettings: View {
   var body: some View {
     Columns {
       Section("Command Bar") {
-        SettingToggle("⌘L edits the front tab's address", detail: "In the command bar over the window; ⌥Return opens a new tab", symbol: "command",
+        SettingToggle("⌘L edits the front tab's address", detail: "In the command bar; ⌥Return opens a new tab", symbol: "command",
                       isOn: Prefs.binding(.omniboxL))
         SettingToggle("⌘T opens a new tab", detail: "From the command bar, with the most used sites listed", symbol: "plus.square",
                       isOn: Prefs.binding(.omniboxT))

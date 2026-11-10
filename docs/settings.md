@@ -117,7 +117,7 @@ Eight tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 |---|---|---|---|---|---|
 | Browser | P Chrome, Safari | Chrome | `browser` | `Browser.current` | Where links from other apps open |
 | Open Chrome with Monochrome | T | on | `openBrowserAtLaunch` | `App.applicationDidFinishLaunching` | So Chrome starts at login with its launch flags |
-| Address bar opens the matching history page | T | on | `launchFlags` | `Chrome.open`, `relaunchWithFlags`, `runningWithFlags`, `warnIfStartedWithoutFlags` | Chrome launch flag; applies when Chrome starts from the Dock |
+| Address bar opens the matching history page | T | on | `launchFlags` | `Chrome.open`, `relaunchWithFlags`, `runningWithFlags`, `warnIfStartedWithoutFlags` | A launch flag, for Chrome started from the Dock tile |
 | Dock tile | S Add to Dock | placed once | `dockTileFor` | `Install.dockHasTile`, `placeDockTile` | Takes Chrome's tile and starts Chrome with the flags |
 | Extension: Install Extension… (Safari: Extension Settings…) | B | | none | `GeneralModel.installExtension` | Connects each browser profile to Monochrome |
 | Extension shortcuts: Open… | B, Chrome only | | none | opens `chrome://extensions/shortcuts` | Chrome's own page for the extension's keys |
@@ -142,7 +142,7 @@ The Browser Profiles list (each connected profile with its browser's icon and le
 | Locked tabs come back when closed | T | on | `lockedTabs`, sent | `lockedTabs()` in `background.js` | Pinned tabs reopen at their locked address; ⌃R resets one |
 | Locked group | text field, prompt "none" | CoreCore | `lockedGroup`, sent | `LOCKED_GROUPS` in `background.js` | Tabs in a Chrome tab group with this title lock too |
 | New tabs open at the top | T | on | `newTabsAtTop`, sent | `tabs.onCreated` in `background.js`; `moveToMain`; `routeOpen` | Directly under the locked tabs |
-| Collapse the tab sidebar ⌘S | T | on | `shortcutSidebar` | `Install.setChromeShortcuts`, `SafariShortcuts.write` | Save Page As moves to ⇧⌘S; applies when the browser restarts |
+| Collapse the tab sidebar ⌘S | T | on | `shortcutSidebar` | `Install.setChromeShortcuts`, `SafariShortcuts.write` | Save Page As moves to ⇧⌘S, after a browser restart |
 | Next and previous tab ⌥⌘↓, ⌥⌘↑ | T | on | `shortcutTabs` | same | Steps down and up the tab list, after a browser restart |
 | ⌃Tab goes to the last used tab | T | on | `switcher` | `Tap.handle` | By recent use in this window; off leaves the browser's order |
 | Switcher panel | T | on | `switcherPanel` | `tap.useSwitcher` in `App.swift` | Hold ⌃ to pick from recent tabs; release to go |
@@ -176,7 +176,7 @@ Notes on what each does when off:
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
-| ⌘L edits the front tab's address | T | on | `omniboxL` | `App.openOmnibox(newTab: false)` | In the command bar over the window; ⌥Return opens a new tab |
+| ⌘L edits the front tab's address | T | on | `omniboxL` | `App.openOmnibox(newTab: false)` | In the command bar; ⌥Return opens a new tab |
 | ⌘T opens a new tab | T | on | `omniboxT` | `App.openOmnibox(newTab: true)` | From the command bar, with the most used sites listed |
 | Google suggestions | T | on | `omniboxSuggestions` | `model.onSuggest` in `App.setUpOmnibox` | What is typed goes to Google as it is typed |
 | Full Disk Access | S Open Settings…, shown when Browser is Safari or a Safari profile is connected | | none | whether `SafariHistory.databaseURL` is readable | For Safari's history and bookmarks |

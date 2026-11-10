@@ -100,7 +100,7 @@ final class GeneralModel: ObservableObject {
   @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
   @Published var isDefaultBrowser = false
   @Published var accessibility = AXIsProcessTrusted()
-  @Published var chrome = ""
+  @Published var browserWarning: String? // shown as a triangle by the Browser Profiles header
   @Published var browser = Browser.current
   @Published var extensions = ""
   @Published var connected: [String] = []
@@ -119,15 +119,8 @@ final class GeneralModel: ObservableObject {
     accessibility = AXIsProcessTrusted()
     isDefaultBrowser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) == Bundle.main.bundleURL
     browser = Browser.current
-    if browser == .safari {
-      chrome = Chrome.running == nil ? "Not running" : "Running"
-    } else {
-      switch Chrome.runningWithFlags() {
-      case nil: chrome = "Not running"
-      case true?: chrome = "Running with its launch flags"
-      case false?: chrome = "Running without its launch flags: quit it and open it from the Dock"
-      }
-    }
+    browserWarning = browser == .chrome && Chrome.runningWithFlags() == false
+      ? "Chrome is running without its launch flags. Quit it (⌘Q) and open it from the Dock." : nil
     extensions = connections()
     connected = profiles()
   }
@@ -196,9 +189,6 @@ struct GeneralSettings: View {
         }
       }
       Form {
-        Section(model.browser.name) {
-          Text(model.chrome).foregroundStyle(.secondary)
-        }
         Section {
           if model.connected.isEmpty {
             Text("No profile has connected").foregroundStyle(.secondary)
@@ -207,7 +197,15 @@ struct GeneralSettings: View {
           }
           Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
         } header: {
-          Text("Browser Profiles")
+          HStack(spacing: 4) {
+            Text("Browser Profiles")
+            if let warning = model.browserWarning {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .help(warning)
+                .accessibilityLabel(warning)
+            }
+          }
         } footer: {
           if model.browser == .safari {
             Text("The Safari profiles whose extension is talking to the app. Turn Monochrome on in Safari's Extensions settings and allow it on every website.")

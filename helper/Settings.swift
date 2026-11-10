@@ -195,6 +195,7 @@ final class GeneralModel: ObservableObject {
 struct GeneralSettings: View {
   @ObservedObject var model: GeneralModel
   @AppStorage("profileHotkeys") private var profileHotkeys = true // read by the tap (Tap.swift)
+  @AppStorage("omnibox") private var omnibox = true // read by App.openOmnibox
   private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
   var onCheckForUpdates: () -> Void = {}
@@ -209,6 +210,7 @@ struct GeneralSettings: View {
           }
           Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
           Toggle("Profile hotkeys ⌃⌥← → and ⌃⌥1–9", isOn: $profileHotkeys)
+          Toggle("Address box for ⌘L and ⌘T", isOn: $omnibox)
           LabeledContent("Default browser") {
             if model.isDefaultBrowser { Text("Monochrome").foregroundStyle(.secondary) } else { Button("Make Default…", action: model.makeDefault) }
           }

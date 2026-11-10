@@ -15,6 +15,9 @@
 //                   the extension's host is connected
 //   --routes [url [sender]]  the link rules (Routes.swift) and, for a URL, the rule it would take
 //   --settings      open the settings window of the running app (started if it is not)
+//   --demo-omnibox <out.png> [dark]  the ⌘L/⌘T box on sample history, drawn into a PNG
+//   --omnibox chrome|safari [query]  the ⌘L/⌘T box's model for that browser's profile, typed into
+//                   without showing it; the running app logs the rows (Omnibox.swift)
 //   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
@@ -85,6 +88,24 @@ case "--settings":
   }
   ask(12)
   RunLoop.main.run()
+case "--demo-omnibox":
+  let app = NSApplication.shared
+  app.setActivationPolicy(.accessory)
+  let omnibox = OmniboxController()
+  omnibox.demo(out: CommandLine.arguments.dropFirst(2).first ?? "omnibox.png", dark: CommandLine.arguments.contains("dark"))
+  app.run()
+case "--omnibox":
+  let rest = Array(CommandLine.arguments.dropFirst(2))
+  let message = ["omniboxTest": ["browser": rest.first ?? "chrome", "query": rest.dropFirst().joined(separator: " ")]]
+  guard let fd = Socket.connect(Socket.path), var line = try? JSONSerialization.data(withJSONObject: message) else {
+    FileHandle.standardError.write(Data("Monochrome is not running\n".utf8))
+    exit(1)
+  }
+  line.append(10)
+  _ = line.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+  sleep(4) // the app answers to this connection's lifetime; the rows go to the log
+  close(fd)
+  exit(0)
 case "--unregister":
   try? SMAppService.mainApp.unregister()
   exit(0)

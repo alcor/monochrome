@@ -391,6 +391,29 @@ assert.equal((await tabOf(plain)).windowType, 'popup');
 await close(plain);
 console.log('routes: same-site, front, group, mini: ok');
 
+// The ⌘L/⌘T box (omnibox.js): this profile's history, bookmarks, open tabs and front tab for the app,
+// favicons for its rows, and where to go: the front tab, a new tab at the top, or an open tab.
+const visited = await open('/omnibox/visited');
+await sw.evaluate(async url => chrome.bookmarks.create({ title: 'Marked', url }), `${base}/omnibox/marked`);
+const data = await sw.evaluate(() => omniboxData());
+assert.ok(data.history.some(h => h.url === `${base}/omnibox/visited` && h.visits >= 1 && h.last > 0));
+assert.ok(data.bookmarks.some(b => b.url === `${base}/omnibox/marked` && b.title === 'Marked'));
+assert.ok(data.tabs.some(t => t.id === visited && t.url === `${base}/omnibox/visited`));
+assert.equal(data.current?.id, visited);
+const icons = await sw.evaluate(url => omniboxFavicons([url]), `${base}/omnibox/visited`);
+assert.ok(`${base}/omnibox/visited` in icons);
+await sw.evaluate(url => omniboxGo({ url }), `${base}/omnibox/went`);
+assert.equal(await urlBecomes(visited, `${base}/omnibox/went`), `${base}/omnibox/went`);
+await sw.evaluate(url => omniboxGo({ url, newTab: true }), `${base}/omnibox/new`);
+await settle();
+const made = await sw.evaluate(async url => (await chrome.tabs.query({ url }))[0], `${base}/omnibox/new`);
+assert.equal(made?.index, await sw.evaluate(([w, id]) => topIndex(w, id), [made.windowId, made.id]));
+await sw.evaluate(id => omniboxGo({ tab: id }), visited);
+await settle();
+assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id)).active, visited), true);
+await close(made.id); await close(visited);
+console.log('omnibox: history, bookmarks, tabs, favicons, go: ok');
+
 // A link from another app (a second launch handing a URL to the running browser) opens in a mini browser.
 // Headless Chromium doesn't accept that hand-off, so this one needs HEADFUL=1.
 if (process.env.HEADFUL) {
@@ -474,9 +497,11 @@ await close(song);
 assert.equal(await sw.evaluate(id => music.has(id), song), false);
 console.log('mini player: track info and buttons: ok');
 
-// The helper's host role (if built: make build) reads a message that arrives in pieces, stays up
-// without the app half, and quits when Chrome closes the connection.
-const helperApp = path.join(ext, 'build/Build/Products/Release/Monochrome.app');
+// The helper's host role (if built: make build, or make install, which builds into ~/Applications)
+// reads a message that arrives in pieces, stays up without the app half, and quits when Chrome closes
+// the connection.
+const builtApp = path.join(ext, 'build/Build/Products/Release/Monochrome.app');
+const helperApp = fs.existsSync(builtApp) ? builtApp : path.join(os.homedir(), 'Applications/Monochrome.app');
 const helperBinary = path.join(helperApp, 'Contents/MacOS/Monochrome');
 if (fs.existsSync(helperBinary)) {
   const p = spawn(helperBinary, ['--host'], { stdio: ['pipe', 'ignore', 'inherit'],

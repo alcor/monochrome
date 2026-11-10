@@ -21,7 +21,9 @@
     "search",
     "alarms",
     "nativeMessaging",
-    "favicon"
+    "favicon",
+    "history",
+    "bookmarks"
   ],
   "host_permissions": [
     "<all_urls>"

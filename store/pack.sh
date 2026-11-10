@@ -21,7 +21,8 @@ with open(sys.argv[1], 'w') as f:
     json.dump(m, f, ensure_ascii=False, indent=2)
     f.write('\n')
 EOF
-grep -v '^manifest.json$' store/files | while read -r f; do cp "$f" "$stage/$f"; done
+# Each file's folder first: the list names files in subfolders (tldr/core, tldr/vendor).
+grep -v '^manifest.json$' store/files | while read -r f; do mkdir -p "$(dirname "$stage/$f")"; cp "$f" "$stage/$f"; done
 (cd "$stage" && zip -q -X -r "$OLDPWD/$out" .)
 unzip -l "$out" | tail -1
 echo "$out"

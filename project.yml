@@ -98,7 +98,8 @@ targets:
           extension="$resources/extension"
           rm -rf "$extension"
           mkdir -p "$extension/icons"
-          while read -r f; do cp "$SRCROOT/$f" "$extension/$f"; done < "$SRCROOT/store/files"
+          # Each file's folder first: the reader's files are in subfolders (tldr/core, tldr/vendor).
+          while read -r f; do mkdir -p "$(dirname "$extension/$f")"; cp "$SRCROOT/$f" "$extension/$f"; done < "$SRCROOT/store/files"
           chmod +x "$resources/host.sh"
           python3 -I - "$SRCROOT" "$resources/extension-ids.json" <<'PY'
           import base64, hashlib, json, os, sys
@@ -149,5 +150,5 @@ targets:
           set -eu
           resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
           mkdir -p "$resources/icons"
-          grep -v '^manifest.json$' "$SRCROOT/store/files" | while read -r f; do cp "$SRCROOT/$f" "$resources/$f"; done
+          grep -v '^manifest.json$' "$SRCROOT/store/files" | while read -r f; do mkdir -p "$(dirname "$resources/$f")"; cp "$SRCROOT/$f" "$resources/$f"; done
           python3 -I "$SRCROOT/store/safari-manifest.py" "$SRCROOT/manifest.json" "$resources/manifest.json"

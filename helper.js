@@ -65,13 +65,20 @@ async function helperHello() {
   helperMinisSoon();
 }
 
-function helperMessage(msg) {
-  if (SAFARI) {
-    if (typeof msg?.name === 'string' && msg.userInfo) msg = msg.userInfo; // dispatchMessage's wrapping
-    if (!msg) return;
-    helperHeardAt = Date.now();
-    if (msg.safariProfile && safariProfile && msg.safariProfile !== safariProfile) return; // another profile's
-  }
+// A message from the app as this copy should act on it, or null. In Safari it arrives in
+// dispatchMessage's { name, userInfo } wrapping and may be meant for another profile's copy.
+function helperUnwrap(msg, safari = SAFARI, profile = safariProfile) {
+  if (!safari) return msg || null;
+  if (typeof msg?.name === 'string' && msg.userInfo) msg = msg.userInfo;
+  if (!msg || typeof msg !== 'object') return null;
+  if (msg.safariProfile && profile && msg.safariProfile !== profile) return null; // another profile's
+  return msg;
+}
+
+function helperMessage(raw) {
+  const msg = helperUnwrap(raw);
+  if (SAFARI && raw) helperHeardAt = Date.now();
+  if (!msg) return;
   if (msg.activate) helperActivate(msg.activate);
   else if (msg.open) routeOpen(msg.open, msg.to).catch(console.error);
   else if (msg.player) playerAction(msg.player);
@@ -80,6 +87,15 @@ function helperMessage(msg) {
   else if (msg.scrolled) helperThumbFront();
   else if (msg.miniNext) miniNextUntil = Date.now() + 1500;
   else if (msg.resend) helperHello(); // the app restarted under a host that stayed up
+  else if (msg.focusFront) focusFront().catch(console.error); // Safari: the app switched to this profile
+}
+
+// This profile's last focused normal window to the front: how the app switches to a Safari profile
+// whose extension is connected, since Safari has no Profiles menu item that does it.
+async function focusFront() {
+  const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
+  if (win) await chrome.windows.update(win.id, { focused: true });
+  return win?.id ?? null;
 }
 
 // The helper's mini browser bar: open in Chrome, move to a window or group, go to an address, or close

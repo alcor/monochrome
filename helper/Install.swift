@@ -2,7 +2,8 @@
 // copy taken from the release zip or the build folder works once it is opened:
 //
 //   every launch   the native messaging host manifest for each Chrome (written only when it differs, so
-//                  a moved app fixes its own path), Chrome's App Shortcuts, Launch Services registration,
+//                  a moved app fixes its own path), Chrome's App Shortcuts (and Safari's, when the
+//                  Browser setting is Safari: SafariShortcuts in Safari.swift), Launch Services registration,
 //                  and removal of what earlier versions installed (Arc for Chrome, Chrome Launcher, the
 //                  Karabiner rule)
 //   once per path  the Dock tile in Chrome's place and the default-browser question
@@ -25,6 +26,8 @@ enum Install {
     guard !portable else { return log.notice("install: portable, host manifests only") }
     LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
     setChromeShortcuts()
+    // Safari's live in its guarded container; written only for someone who uses Safari with the app.
+    if Browser.current == .safari { SafariShortcuts.write() }
     removeEarlierVersions()
     let path = Bundle.main.bundleURL.path
     // The tile is there to start Chrome with its flags; Safari takes none.

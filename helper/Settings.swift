@@ -143,6 +143,8 @@ final class GeneralModel: ObservableObject {
 
   func setBrowser(_ browser: Browser) {
     Browser.current = browser
+    // Safari's App Shortcuts, as the app writes them at launch; Safari applies them when it next starts.
+    if browser == .safari && !Install.portable { SafariShortcuts.write() }
     refresh()
   }
 

@@ -4,7 +4,8 @@
 // Chrome doesn't let extensions draw in its tab strip, so the player is a panel of the helper app
 // (helper/Player.swift) floating over it, told what to show over the helper's port (helper.js).
 //
-// The sidebar's width is the window's minus the page's.
+// The sidebar's width is the window's minus the page's. In Safari the app finds the sidebar itself over
+// Accessibility (Safari's vertical tabs are new in 27.3), so the width does not gate the player there.
 // ponytail: a side panel open on the right also counts as sidebar, so the player gets too wide.
 
 const PLAYER_MIN_SIDEBAR = 150; // narrower than this, the sidebar is collapsed (⌘S): no player
@@ -35,10 +36,10 @@ async function playerState() {
   playerTab = { id, playing: audible?.id === id };
   const win = await chrome.windows.getLastFocused({ populate: true }).catch(() => null);
   const active = win?.tabs.find(t => t.active);
-  const sidebar = win && active ? win.width - active.width : 0;
+  const sidebar = win && active?.width ? win.width - active.width : 0;
   if (active?.id === id) playerClosed = null; // back on the music tab: × is undone for when you leave
   return {
-    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && sidebar >= PLAYER_MIN_SIDEBAR,
+    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && (SAFARI || sidebar >= PLAYER_MIN_SIDEBAR),
     title, artist, artwork, playing: playerTab.playing, sidebar,
     window: win && { left: win.left, top: win.top, width: win.width, height: win.height },
   };

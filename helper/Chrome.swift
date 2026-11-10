@@ -10,8 +10,9 @@ import UserNotifications
 
 // Which browser the app works with, set on the settings window's General tab. Everything that follows
 // "Chrome" below (the front app check, its windows over the window list and Accessibility, opening
-// links) follows Safari instead when this says Safari; the launch flags, the Dock tile and the
-// Profiles menu stay Chrome's. Kept in the app's defaults; Chrome until changed.
+// links) follows Safari instead when this says Safari; the launch flags and the Dock tile stay
+// Chrome's, and profiles come from Safari's File menu (Safari.swift). Kept in the app's defaults;
+// Chrome until changed.
 enum Browser: String, CaseIterable, Identifiable {
   case chrome, safari
   var id: String { rawValue }
@@ -177,7 +178,8 @@ enum Chrome {
       let rest = full[mark.upperBound...]
       return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
     }
-    for name in Profiles.names() where full.hasSuffix(" - " + name) {
+    // Safari puts no profile in its titles, so a page title ending in a profile's name is just a title.
+    for name in Browser.current == .chrome ? Profiles.names() : [] where full.hasSuffix(" - " + name) {
       return (String(full.dropLast(name.count + 3)), name)
     }
     return (full, "")

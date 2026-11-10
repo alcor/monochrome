@@ -6,6 +6,10 @@
 // Where the sidebar is: the extension sends the focused window's bounds and the sidebar's width; the
 // panel sits on the frontmost on-screen Chrome window with the same size (so it follows while you drag)
 // or the same corner (while you resize).
+//
+// On Safari the sidebar is found over Accessibility instead (SafariSidebar in Safari.swift): Safari's
+// vertical tabs arrive in 27.3, and their AX shape is unmeasured. With an older Safari, or no tab list
+// found in the window, the panel stays hidden.
 import AppKit
 
 struct Bounds: Decodable { let left, top, width, height: Double }
@@ -151,13 +155,22 @@ final class Player: NSObject {
 
   // Keeps the panel on the bottom of the sidebar; hides it when Chrome isn't the app in front.
   private func layout() {
-    guard let s = state, s.show, let w = s.window, let sidebar = s.sidebar, front, let primary = NSScreen.screens.first,
+    guard let s = state, s.show, let w = s.window, front, let primary = NSScreen.screens.first,
           let window = Chrome.match(CGRect(x: w.left, y: w.top, width: w.width, height: w.height), in: onScreen)
     else { return panel.orderOut(nil) } // minimized, on another Space, or nothing to show
-    let frame = window.frame
+    // Chrome: the window's left edge and the sidebar width the extension measured. Safari: the tab
+    // list found over Accessibility.
+    let column: CGRect
+    if Browser.current == .safari {
+      guard let found = SafariSidebar.frame(for: window) else { return panel.orderOut(nil) }
+      column = found
+    } else {
+      guard let sidebar = s.sidebar else { return panel.orderOut(nil) }
+      column = CGRect(x: window.frame.minX, y: window.frame.minY, width: sidebar, height: window.frame.height)
+    }
     // Window bounds count down from the top of the main screen; AppKit counts up from its bottom.
-    let rect = NSRect(x: frame.minX + Self.inset, y: primary.frame.height - frame.maxY + Self.inset,
-                      width: sidebar - 2 * Self.inset, height: Self.height)
+    let rect = NSRect(x: column.minX + Self.inset, y: primary.frame.height - column.maxY + Self.inset,
+                      width: column.width - 2 * Self.inset, height: Self.height)
     if panel.frame != rect { panel.setFrame(rect, display: true) }
     if !panel.isVisible { panel.orderFrontRegardless() }
   }

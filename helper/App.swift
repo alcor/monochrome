@@ -13,7 +13,9 @@
 // Safari's copies of the extension reach the app through its app extension instead (Bridge.swift,
 // Safari.swift): one connection per Safari profile, made when that profile's first message arrives and
 // dropped when it has been quiet for 150 seconds (the extension says it is alive every minute) or
-// Safari quits. Only the connections of the browser chosen in settings take part.
+// Safari quits. Only the connections of the browser chosen in settings take part. A Safari connection
+// is known by Safari's profile id; its name is learned when the app opens that profile's window from
+// Safari's File menu (learnSafariProfile) and kept across launches (SafariProfiles.learned).
 import AppKit
 import Sparkle
 import ServiceManagement
@@ -22,7 +24,7 @@ final class Connection {
   let peer: Peer
   var tabs: [TabInfo] = []
   var front: (id: Int, frame: CGRect, title: String)?
-  var profile: String? // the name Chrome puts in this profile's window titles, once seen
+  var profile: String? // the name Chrome puts in this profile's window titles, once seen; on Safari, the learned name
   var browser: String? // which Chrome (Chrome.Variant.name), learned with the profile
   var app: NSRunningApplication? { Chrome.runningApps.first { Chrome.name(of: $0) == browser } ?? Chrome.running }
   var minis: [MiniBrowser] = []
@@ -70,11 +72,11 @@ final class App: NSObject, NSApplicationDelegate {
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
     SettingsWindow.shared.connectedProfiles = { [weak self] in
-      self?.connections.compactMap { c in c.safari?.label ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
+      self?.connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } } ?? []
     }
     SettingsWindow.shared.connectionsSummary = { [weak self] in
       guard let self, !connections.isEmpty else { return "Not connected" }
-      let names = connections.compactMap { c in c.safari?.label ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
+      let names = connections.compactMap { c in c.safari.map { c.profile ?? $0.label } ?? c.profile.map { c.browser == nil || c.browser == Chrome.variants[0].name ? $0 : "\($0) in \(c.browser!)" } }
       let count = "\(connections.count) profile\(connections.count == 1 ? "" : "s")"
       return "Connected in " + (names.count == connections.count ? names.joined(separator: ", ") : count)
     }
@@ -128,6 +130,8 @@ final class App: NSObject, NSApplicationDelegate {
       if pick { minis.showMenu(front.id) } else { minis.onAction(["window": front.id, "action": "open"]) }
       return true
     }
+    profiles.onSafari = { [weak self] profile in self?.switchSafari(to: profile) }
+    SafariProfiles.current = { [weak self] in self?.frontConnection?.profile }
     tap.onProfile = { [weak self] step, index in
       guard let self else { return }
       if let index { profiles.go(to: index) } else { profiles.cycle(step) }
@@ -221,6 +225,7 @@ final class App: NSObject, NSApplicationDelegate {
       connection = known
     } else {
       connection = Connection(peer: SafariPeer(profile: profile))
+      connection.profile = SafariProfiles.learned[profile]
       allConnections.append(connection)
       log.info("safari: \(connection.safari!.label, privacy: .public) connected (\(self.allConnections.count))")
       if message["hello"] == nil { send(["resend": true], to: connection) } // the app started after it said hello
@@ -291,10 +296,13 @@ final class App: NSObject, NSApplicationDelegate {
   // Profiles menu item) brings that profile's window forward, opening one if it has none, and the
   // extension there connects and reports a window carrying the name. Up to three seconds for that;
   // then the URL goes to Chrome, which opens it in the profile now in front.
-  func deliver(_ url: URL, to: [String: Any], profile name: String, tries: Int = 12) {
+  // On Safari the switch is the profile's File → New Window item, which opens a window of that
+  // profile; the connection that reports it learns the name (learnSafariProfile), and the link goes
+  // over that connection. Safari gets eight seconds, since a profile's extension may start with it.
+  func deliver(_ url: URL, to: [String: Any], profile name: String, tries: Int? = nil) {
     learnProfiles()
     if let known = connection(profile: name, browser: nil) { return deliver(url, to: to, over: known) }
-    if tries == 12 {
+    if tries == nil {
       let list = Profiles.read()
       guard let index = list.firstIndex(where: { $0.name == name }) else {
         log.error("route: no profile named \(name, privacy: .public); using the front one")
@@ -302,8 +310,38 @@ final class App: NSObject, NSApplicationDelegate {
       }
       profiles.go(to: index, in: list)
     }
-    guard tries > 0 else { return Chrome.open([url], activate: true) }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: tries - 1) }
+    let left = tries ?? (Browser.current == .safari ? 32 : 12)
+    guard left > 0 else { return Chrome.open([url], activate: true) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.deliver(url, to: to, profile: name, tries: left - 1) }
+  }
+
+  // A Safari profile picked by hotkey or by a route. When its extension is connected and has a window,
+  // that copy of the extension focuses its last focused window. Otherwise the app presses the
+  // profile's File → New Window item and waits for a connection to report a new front window: that
+  // connection is the profile. **Unmeasured**: whether each profile's copy of the extension sees only
+  // that profile's windows, which this relies on.
+  var pendingSafari: (name: String, at: Date, fronts: [ObjectIdentifier: Int])?
+  func switchSafari(to profile: Profile) {
+    if let known = connection(profile: profile.name, browser: nil), known.front != nil {
+      send(["focusFront": true], to: known)
+      NSRunningApplication.runningApplications(withBundleIdentifier: Safari.bundleId).first?.activate()
+      return
+    }
+    pendingSafari = (profile.name, Date(), Dictionary(connections.map { (ObjectIdentifier($0), $0.front?.id ?? -1) }, uniquingKeysWith: { a, _ in a }))
+    AXUIElementPerformAction(profile.item, kAXPressAction as CFString)
+  }
+
+  // After switchSafari pressed a New Window item: the first Safari connection, within ten seconds,
+  // whose front window is not the one it had before (or that is new) takes the profile's name.
+  func learnSafariProfile(_ connection: Connection) {
+    guard let pending = pendingSafari, let peer = connection.safari, let front = connection.front else { return }
+    guard Date().timeIntervalSince(pending.at) < 10 else { pendingSafari = nil; return }
+    if pending.fronts[ObjectIdentifier(connection)] == front.id { return }
+    pendingSafari = nil
+    for other in connections where other !== connection && other.profile == pending.name { other.profile = nil }
+    connection.profile = pending.name
+    SafariProfiles.remember(pending.name, for: peer.profile)
+    log.notice("profile: Safari profile \(peer.label, privacy: .public) learned as \(pending.name, privacy: .public)")
   }
 
   // The connection learned as a profile of a Chrome: a popup's title has no browser name, so a
@@ -388,6 +426,7 @@ final class App: NSObject, NSApplicationDelegate {
       }
       if let id = message["window"] as? Int, let front = message["front"] as? [String: Any], let frame = rect(front) {
         connection.front = (id, frame, front["title"] as? String ?? "")
+        learnSafariProfile(connection)
       }
       merge()
       let listed = Set(connections.flatMap(\.tabs).map(\.id))

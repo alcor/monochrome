@@ -580,6 +580,174 @@ if (fs.existsSync(helperBinary)) {
   console.log('safari: profile titles, vertical tab gate, sidebar pick, profile envelope, App Shortcuts: ok');
 } else console.log('safari: app readers: skipped (run make build)');
 
+// Settings from the app (docs/settings.md): { prefs } over the port, the whole set, kept in
+// chrome.storage.local; without the app, PREF_DEFAULTS, which is how the extension behaved before.
+{
+  const defaults = await sw.evaluate(() => PREF_DEFAULTS);
+  assert.deepEqual(await sw.evaluate(() => PREFS), defaults);
+  assert.equal((await sw.evaluate(() => chrome.storage.local.get('prefs'))).prefs, undefined);
+  console.log('prefs: defaults with no message from the app: ok');
+
+  const setPrefs = async p => { await sw.evaluate(p => applyPrefs(p), { ...defaults, ...p }); await settle(); };
+  await sw.evaluate(p => helperMessage({ prefs: p }), { ...defaults, miniIdleHours: 24, bogus: 1 });
+  for (let i = 0; i < 30 && (await sw.evaluate(() => PREFS.miniIdleHours)) !== 24; i++) await sleep(50);
+  assert.deepEqual((await sw.evaluate(() => chrome.storage.local.get('prefs'))).prefs, { ...defaults, miniIdleHours: 24 });
+  assert.deepEqual(await sw.evaluate(() => PREFS), { ...defaults, miniIdleHours: 24 });
+  await sw.evaluate(p => helperMessage({ prefs: p }), { lockedTabs: 'yes', routeDefault: 'nowhere' }); // wrong types and values: defaults
+  for (let i = 0; i < 30 && (await sw.evaluate(() => PREFS.miniIdleHours)) !== 12; i++) await sleep(50);
+  assert.deepEqual((await sw.evaluate(() => chrome.storage.local.get('prefs'))).prefs, defaults);
+  console.log('prefs: stored from the message, unknown keys dropped: ok');
+
+  // newTabsAtTop off: a new tab stays where Chromium puts it, at the end; on again, under the locked tabs.
+  const lastIndex = id => sw.evaluate(async id => (await chrome.tabs.query({ windowId: (await chrome.tabs.get(id)).windowId })).length - 1, id);
+  await setPrefs({ newTabsAtTop: false });
+  const t1 = await open('/top-off');
+  await settle();
+  assert.equal(await indexOf(t1), await lastIndex(t1));
+  await setPrefs({});
+  const t2 = await open('/top-on');
+  await settle();
+  assert.equal(await indexOf(t2), (await lastLockedIndex()) + 1);
+  await close(t1); await close(t2);
+  console.log('prefs: newTabsAtTop: ok');
+
+  // lockedTabs off: a closed pinned tab stays closed.
+  const byUrl = p => sw.evaluate(async url => (await chrome.tabs.query({ url })).map(t => t.id), `${base}${p}`);
+  await setPrefs({ lockedTabs: false });
+  const p1 = await open('/lock-off', true);
+  await settle();
+  await close(p1);
+  assert.deepEqual(await byUrl('/lock-off'), []);
+  await setPrefs({});
+  console.log('prefs: lockedTabs off: ok');
+
+  // lockedGroup "Work": a tab in a Work group comes back and one in CoreCore does not. Empty: neither.
+  const inGroupTitled = (id, title) => sw.evaluate(async ([id, title]) => {
+    const [g] = await chrome.tabGroups.query({ title });
+    if (g) return chrome.tabs.group({ groupId: g.id, tabIds: id });
+    await chrome.tabGroups.update(await chrome.tabs.group({ tabIds: id }), { title });
+  }, [id, title]);
+  await setPrefs({ lockedGroup: 'Work' });
+  const w1 = await open('/work-1');
+  await inGroupTitled(w1, 'Work');
+  const c1 = await open('/core-1');
+  await inGroupTitled(c1, 'CoreCore');
+  await settle();
+  await close(w1); await close(c1);
+  assert.equal((await byUrl('/work-1')).length, 1);
+  assert.deepEqual(await byUrl('/core-1'), []);
+  await setPrefs({ lockedGroup: '' });
+  await close((await byUrl('/work-1'))[0]);
+  assert.deepEqual(await byUrl('/work-1'), []);
+  await setPrefs({});
+  assert.deepEqual(await groupUrls(), [`${base}/g2`]);
+  console.log('prefs: lockedGroup by title, and empty: ok');
+
+  // peek off: a target=_blank link from a locked tab makes a tab and no popup.
+  await pinnedPage.bringToFront();
+  await setPrefs({ peek: false });
+  await sleep(200);
+  await pinnedPage.evaluate(url => { document.body.innerHTML = `<a href="${url}" target="_blank">go</a>`; }, `${base}/peek-off`);
+  await pinnedPage.click('a');
+  for (let i = 0; i < 30 && !(await byUrl('/peek-off')).length; i++) await sleep(100);
+  await settle();
+  assert.equal((await byUrl('/peek-off')).length, 1);
+  assert.equal(await peekWindow('/peek-off'), undefined);
+  await close((await byUrl('/peek-off'))[0]);
+  await setPrefs({});
+  await focusMain();
+  console.log('prefs: peek off: ok');
+
+  // miniIdleHours: 0 never closes; 1 closes after two hours.
+  await setPrefs({ miniIdleHours: 0 });
+  await sw.evaluate(() => openMiniBrowser());
+  await sw.evaluate(async () => { await chrome.storage.session.set({ focused: -1 }); await archiveMiniBrowsers(Date.now() + 13 * 3600e3); });
+  await sleep(300);
+  assert.equal((await miniBrowsers()).length, 1);
+  await setPrefs({ miniIdleHours: 1 });
+  await sw.evaluate(() => archiveMiniBrowsers(Date.now() + 2 * 3600e3));
+  await sleep(300);
+  assert.deepEqual(await miniBrowsers(), []);
+  await setPrefs({});
+  console.log('prefs: miniIdleHours: ok');
+
+  // thumbnails off: nothing is scheduled. (A stand-in port, since the test has no app.)
+  const fakeHelper = () => sw.evaluate(() => { self.realHelper = helper; self.sentToApp = []; helper = { postMessage: m => sentToApp.push(m) }; });
+  const realHelper = () => sw.evaluate(() => { helper = self.realHelper; });
+  const front = await sw.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
+  await fakeHelper();
+  await setPrefs({ thumbnails: false });
+  assert.equal(await sw.evaluate(id => { thumbAt.clear(); helperThumbSoon(id); return thumbTimers.size; }, front), 0);
+  await setPrefs({});
+  assert.equal(await sw.evaluate(id => { helperThumbSoon(id); const n = thumbTimers.size; thumbTimers.forEach(clearTimeout); thumbTimers.clear(); return n; }, front), 1);
+  console.log('prefs: thumbnails off: ok');
+
+  // hello carries the legacy title the options page kept; the first prefs from the app removes it.
+  await sw.evaluate(() => chrome.storage.local.set({ lockedGroup: 'Legacy' }));
+  await sw.evaluate(() => helperHello());
+  assert.deepEqual(await sw.evaluate(() => sentToApp.find(m => m.hello).hello.lockedGroup), 'Legacy');
+  await setPrefs({});
+  assert.equal((await sw.evaluate(() => chrome.storage.local.get('lockedGroup'))).lockedGroup, undefined);
+  await sw.evaluate(() => { sentToApp.length = 0; return helperHello(); });
+  assert.equal(await sw.evaluate(() => 'lockedGroup' in sentToApp.find(m => m.hello).hello), false);
+  console.log('prefs: legacy title in hello, gone after prefs: ok');
+
+  // The options page: the title read-only while the app is connected; editable, and kept, while not.
+  const id = await sw.evaluate(() => chrome.runtime.id);
+  const options = await ctx.newPage();
+  await options.goto(`chrome-extension://${id}/options.html`);
+  await options.waitForSelector('body[data-ready]');
+  assert.equal(await options.isDisabled('#group'), true);
+  assert.equal(await options.isVisible('#app-settings'), true);
+  await realHelper();
+  await options.reload();
+  await options.waitForSelector('body[data-ready]');
+  assert.equal(await options.isDisabled('#group'), false);
+  assert.equal(await options.isVisible('#app-settings'), false);
+  await options.fill('#group', 'Home');
+  await options.press('#group', 'Tab');
+  for (let i = 0; i < 30 && (await sw.evaluate(() => PREFS.lockedGroup)) !== 'Home'; i++) await sleep(50);
+  assert.deepEqual(await sw.evaluate(() => chrome.storage.local.get(['prefs', 'lockedGroup'])), { prefs: { ...defaults, lockedGroup: 'Home' }, lockedGroup: 'Home' });
+  await options.close();
+  await setPrefs({});
+  console.log('prefs: options page group title, read-only when connected: ok');
+
+  // player off: no player state. playerStopPopout off: the site's own pop-out handler runs when the
+  // browser asks for it; on (the default): it never reaches the browser.
+  const songPage2 = await ctx.newPage();
+  await songPage2.goto('https://open.spotify.com/pip');
+  await songPage2.evaluate(() => navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { document.title = 'pip'; }));
+  const song2 = await sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://open.spotify.com/pip' }))[0].id);
+  for (let i = 0; i < 50 && !(await sw.evaluate(id => music.has(id), song2)); i++) await sleep(100);
+  await setPrefs({ player: false });
+  assert.equal(await sw.evaluate(() => playerState()), null);
+  await setPrefs({ playerStopPopout: false });
+  await sleep(300);
+  await sw.evaluate(() => playerState());
+  await sw.evaluate(() => playerAction({ action: 'enterpictureinpicture' }));
+  await songPage2.waitForFunction(() => document.title === 'pip', null, { timeout: 3000 });
+  await songPage2.evaluate(() => { document.title = 'not'; });
+  await setPrefs({});
+  await sleep(300);
+  await sw.evaluate(() => playerAction({ action: 'enterpictureinpicture' }));
+  await sleep(500);
+  assert.equal(await songPage2.title(), 'not');
+  await songPage2.close();
+  console.log('prefs: player and playerStopPopout: ok');
+
+  // The app's default payload is the extension's PREF_DEFAULTS, so the two lists cannot drift.
+  if (fs.existsSync(helperBinary)) {
+    const p = spawn(helperBinary, ['--prefs', '--defaults'], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    assert.equal(await new Promise(r => p.on('exit', r)), 0);
+    assert.deepEqual(JSON.parse(out), defaults);
+    console.log('prefs: the app\'s defaults match the extension\'s: ok');
+  } else console.log('prefs: app defaults: skipped (run make build)');
+  assert.deepEqual(await sw.evaluate(() => PREFS), defaults);
+}
+
+
 await ctx.close();
 
 // The app registers its own native messaging host (Install.swift): with the manifest it writes, a fresh

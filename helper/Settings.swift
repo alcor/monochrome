@@ -19,7 +19,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
   static let shared = SettingsWindow()
   static let width: CGFloat = 760
   // --demo-settings takes a tab by these names or by index.
-  static let tabNames = ["general", "browser", "tabs", "mini", "command", "player", "router"]
+  static let tabNames = ["general", "browser", "tabs", "mini", "command", "player", "router", "profiles"]
   static func tabIndex(_ name: String) -> Int? {
     if let index = Int(name) { return tabNames.indices.contains(index) ? index : nil }
     return tabNames.firstIndex(of: name.lowercased() == "address" ? "command" : name.lowercased())
@@ -65,12 +65,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     // Heights fitted so no tab scrolls, from the --demo-settings pictures.
     let pages: [(NSViewController, String, String, CGFloat)] = [
       (NSHostingController(rootView: GeneralSettings(model: model, updates: automaticUpdates, onCheckForUpdates: check)), "General", "gearshape", 320),
-      (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 570),
+      (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 320),
       (NSHostingController(rootView: TabsSettings(model: model)), "Tabs", "sidebar.left", 500),
       (NSHostingController(rootView: MiniBrowserSettings()), "Mini Browsers", "macwindow.on.rectangle", 320),
       (NSHostingController(rootView: CommandBarSettings(model: model)), "Command Bar", "magnifyingglass", 290),
       (NSHostingController(rootView: PlayerSettings()), "Player", "music.note", 300),
-      (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500), // the rules beside the selected one's fields
+      (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500),
+      (NSHostingController(rootView: ProfilesSettings(model: model)), "Profiles", "person.2", 400),
     ]
     heights = pages.map(\.3)
     let tabs = SettingsTabController()
@@ -178,12 +179,14 @@ struct SettingRow<Control: View>: View {
   let title: String
   var keys: String?
   var detail: String?
+  var symbol: String? // SF Symbol icon, shown left of the title
   @ViewBuilder var control: () -> Control
 
-  init(_ title: String, keys: String? = nil, detail: String? = nil, @ViewBuilder control: @escaping () -> Control) {
+  init(_ title: String, keys: String? = nil, detail: String? = nil, symbol: String? = nil, @ViewBuilder control: @escaping () -> Control) {
     self.title = title
     self.keys = keys
     self.detail = detail
+    self.symbol = symbol
     self.control = control
   }
 
@@ -191,6 +194,7 @@ struct SettingRow<Control: View>: View {
     // The description runs under the control too, so a 60-character line fits a column.
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 8) {
+        if let symbol { Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(.secondary) }
         keys.map { Text(title + "  ") + Text($0).foregroundColor(.secondary) } ?? Text(title)
         Spacer(minLength: 0)
         control()
@@ -205,17 +209,19 @@ struct SettingToggle: View {
   let title: String
   var keys: String?
   var detail: String?
+  var symbol: String? // SF Symbol icon, shown left of the title
   let isOn: Binding<Bool>
 
-  init(_ title: String, keys: String? = nil, detail: String? = nil, isOn: Binding<Bool>) {
+  init(_ title: String, keys: String? = nil, detail: String? = nil, symbol: String? = nil, isOn: Binding<Bool>) {
     self.title = title
     self.keys = keys
     self.detail = detail
+    self.symbol = symbol
     self.isOn = isOn
   }
 
   var body: some View {
-    SettingRow(title, keys: keys, detail: detail) {
+    SettingRow(title, keys: keys, detail: detail, symbol: symbol) {
       Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
     }
   }

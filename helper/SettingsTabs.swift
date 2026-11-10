@@ -129,13 +129,14 @@ private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoc
 private struct StatusRow: View {
   let title: String
   var detail: String?
+  var symbol: String?
   let ok: Bool
   let okText: String
   let button: String
   let action: () -> Void
 
   var body: some View {
-    SettingRow(title, detail: detail) {
+    SettingRow(title, detail: detail, symbol: symbol) {
       if ok { Text(okText).foregroundStyle(.secondary) } else { Button(button, action: action) }
     }
   }
@@ -152,17 +153,17 @@ struct GeneralSettings: View {
   var body: some View {
     Columns {
       Section("Monochrome") {
-        SettingToggle("Open at login", detail: "Monochrome starts with the Mac",
+        SettingToggle("Open at login", detail: "Monochrome starts with the Mac", symbol: "power",
                       isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
-        SettingToggle("Check for updates automatically", detail: "Once a day, from the appcast on GitHub",
+        SettingToggle("Check for updates automatically", detail: "Once a day, from the appcast on GitHub", symbol: "arrow.triangle.2.circlepath",
                       isOn: Binding(get: { automatic }, set: { automatic = $0; updates.set($0) }))
-        SettingRow("Version " + model.version) { Button("Check for Updates…", action: onCheckForUpdates) }
+        SettingRow("Version " + model.version, symbol: "info.circle") { Button("Check for Updates…", action: onCheckForUpdates) }
       }
     } right: {
       Section("macOS") {
-        StatusRow(title: "Default browser", detail: "Links from other apps reach Monochrome first",
+        StatusRow(title: "Default browser", detail: "Links from other apps reach Monochrome first", symbol: "globe",
                   ok: model.isDefaultBrowser, okText: "Monochrome", button: "Make Default…", action: model.makeDefault)
-        StatusRow(title: "Accessibility", detail: "For ⌃Tab, ⌥⌘-click, ⌘L, ⌘T and the profile hotkeys",
+        StatusRow(title: "Accessibility", detail: "For ⌃Tab, ⌥⌘-click, ⌘L, ⌘T and the profile hotkeys", symbol: "eye",
                   ok: model.accessibility, okText: "Allowed", button: "Open Settings…") { GeneralModel.openPrivacyPane("Privacy_Accessibility") }
       }
     }
@@ -180,21 +181,21 @@ struct BrowserSettings: View {
   var body: some View {
     Columns {
       Section("Browser") {
-        SettingRow("Browser", detail: "Where links from other apps open") {
+        SettingRow("Browser", detail: "Where links from other apps open", symbol: "globe") {
           Picker("Browser", selection: Binding(get: { model.browser }, set: model.setBrowser)) {
             ForEach(Browser.allCases) { Text($0.name).tag($0) }
           }
           .labelsHidden().fixedSize()
         }
-        SettingToggle("Open Chrome when Monochrome starts", detail: "So Chrome starts at login with its launch flags",
+        SettingToggle("Open Chrome when Monochrome starts", detail: "So Chrome starts at login with its launch flags", symbol: "macwindow.on.rectangle",
                       isOn: Prefs.binding(.openBrowserAtLaunch))
-        SettingToggle("Address bar opens history matches", detail: "Chrome launch flag; applies when Chrome starts from the Dock",
+        SettingToggle("Address bar opens history matches", detail: "Chrome launch flag; applies when Chrome starts from the Dock", symbol: "arrow.right.circle",
                       isOn: Prefs.binding(.launchFlags))
-        StatusRow(title: "Dock tile", detail: "Takes Chrome's tile and starts Chrome with the flags",
+        StatusRow(title: "Dock tile", detail: "Takes Chrome's tile and starts Chrome with the flags", symbol: "dock.rectangle",
                   ok: model.dockTile, okText: "In the Dock", button: "Add to Dock", action: model.addDockTile)
       }
     } right: {
-      Section {
+      Section("Extensions") {
         if model.connected.isEmpty {
           Text("No profile has connected").foregroundStyle(.secondary)
         } else {
@@ -211,24 +212,6 @@ struct BrowserSettings: View {
           if model.browser == .chrome { Button("Extension Shortcuts…", action: model.openExtensionShortcuts) }
         }
         if model.browserWarning != nil { Button("Relaunch Chrome…", action: model.relaunchChrome) }
-      } header: {
-        HStack(spacing: 4) {
-          Text("Browser Profiles")
-          if let warning = model.browserWarning {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.yellow)
-              .help(warning)
-              .accessibilityLabel(warning)
-          }
-        }
-      }
-      Section("Profile Keys") {
-        SettingToggle("Next and previous profile", keys: "⌃⌥→, ⌃⌥←", detail: "Off if a window manager uses these keys",
-                      isOn: Prefs.binding(.profileArrows))
-        SettingToggle("Profile by number", keys: "⌃⌥1 to ⌃⌥9", detail: "By place in the browser's profile menu",
-                      isOn: Prefs.binding(.profileDigits))
-        SettingToggle("Profile HUD", detail: "Shows the profiles for 1.2 seconds on a switch",
-                      isOn: Prefs.binding(.profileHUD))
       }
     }
     .onReceive(refreshTimer) { _ in model.refresh() }
@@ -246,31 +229,31 @@ struct TabsSettings: View {
   var body: some View {
     Columns {
       Section("Locked Tabs") {
-        SettingToggle("Locked tabs come back when closed", detail: "Pinned tabs reopen at their locked address; ⌃R resets one",
+        SettingToggle("Locked tabs come back when closed", detail: "Pinned tabs reopen at their locked address; ⌃R resets one", symbol: "lock.shield",
                       isOn: Prefs.binding(.lockedTabs))
-        SettingRow("Locked group", detail: "Tabs in a Chrome tab group with this title lock too") {
+        SettingRow("Locked group", detail: "Tabs in a Chrome tab group with this title lock too", symbol: "list.bullet.rectangle") {
           TextField("Locked group", text: $group, prompt: Text("none"))
             .labelsHidden().frame(width: 110).focused($editingGroup)
             .onSubmit(saveGroup)
             .onChange(of: editingGroup) { if !$0 { saveGroup() } }
         }
         .disabled(!Prefs.lockedTabs)
-        SettingToggle("New tabs open at the top", detail: "Directly under the locked tabs", isOn: Prefs.binding(.newTabsAtTop))
+        SettingToggle("New tabs open at the top", detail: "Directly under the locked tabs", symbol: "arrow.up.right", isOn: Prefs.binding(.newTabsAtTop))
       }
       Section("App Shortcuts") {
-        SettingToggle("Collapse the tab sidebar", keys: "⌘S", detail: "Save Page As moves to ⇧⌘S; applies when the browser restarts",
+        SettingToggle("Collapse the tab sidebar", keys: "⌘S", detail: "Save Page As moves to ⇧⌘S; applies when the browser restarts", symbol: "sidebar.left",
                       isOn: Prefs.binding(.shortcutSidebar, then: model.applyShortcuts))
-        SettingToggle("Next and previous tab", keys: "⌥⌘↓, ⌥⌘↑", detail: "Steps down and up the tab list, after a browser restart",
+        SettingToggle("Next and previous tab", keys: "⌥⌘↓, ⌥⌘↑", detail: "Steps down and up the tab list, after a browser restart", symbol: "arrow.up.arrow.down",
                       isOn: Prefs.binding(.shortcutTabs, then: model.applyShortcuts))
       }
     } right: {
       Section("Switcher") {
-        SettingToggle("⌃Tab goes to the last used tab", detail: "By recent use in this window; off leaves the browser's order",
+        SettingToggle("⌃Tab goes to the last used tab", detail: "By recent use in this window; off leaves the browser's order", symbol: "repeat",
                       isOn: Prefs.binding(.switcher))
         Group {
-          SettingToggle("Switcher panel", detail: "Hold ⌃ to pick from recent tabs; release to go", isOn: Prefs.binding(.switcherPanel))
+          SettingToggle("Switcher panel", detail: "Hold ⌃ to pick from recent tabs; release to go", symbol: "square.grid.2x2", isOn: Prefs.binding(.switcherPanel))
           Group {
-            SettingToggle("Thumbnails", detail: "A picture of each tab, kept in memory only", isOn: Prefs.binding(.thumbnails))
+            SettingToggle("Thumbnails", detail: "A picture of each tab, kept in memory only", symbol: "photo.on.rectangle", isOn: Prefs.binding(.thumbnails))
             SettingRow("Panel appears after", detail: "A quicker tap switches without the panel") {
               Picker("Panel appears after", selection: Binding(get: { Prefs.switcherDelay }, set: { Prefs.set(.switcherDelay, $0) })) {
                 ForEach([0.1, 0.15, 0.3, 0.5], id: \.self) { Text("\($0.formatted()) s").tag($0) }
@@ -306,19 +289,19 @@ struct MiniBrowserSettings: View {
   var body: some View {
     Columns {
       Section("Mini Browsers") {
-        SettingToggle("New mini browser", keys: "⌥⇧N", detail: "From any app: a small window with a search box", isOn: Prefs.binding(.miniHotkey))
-        SettingToggle("⌥⌘-click opens a link in a mini browser", detail: "On any page in the browser", isOn: Prefs.binding(.miniClick))
-        SettingToggle("Peek browsers from locked tabs", detail: "A link from a locked tab opens over the window, shaded", isOn: Prefs.binding(.peek))
+        SettingToggle("New mini browser", keys: "⌥⇧N", detail: "From any app: a small window with a search box", symbol: "arrow.up.left.arrow.down.right", isOn: Prefs.binding(.miniHotkey))
+        SettingToggle("⌥⌘-click opens a link in a mini browser", detail: "On any page in the browser", symbol: "hand.point.up.left", isOn: Prefs.binding(.miniClick))
+        SettingToggle("Peek browsers from locked tabs", detail: "A link from a locked tab opens over the window, shaded", symbol: "eye.slash", isOn: Prefs.binding(.peek))
       }
     } right: {
       Section("Opening and Closing") {
-        SettingRow("Links from other apps", detail: "Open this way when no Router rule claims them") {
+        SettingRow("Links from other apps", detail: "Open this way when no Router rule claims them", symbol: "arrow.right.to.line") {
           Picker("Links from other apps open as", selection: Binding(get: { Prefs.routeDefault }, set: { Prefs.set(.routeDefault, $0.rawValue) })) {
             ForEach(RouteDefault.allCases) { Text($0.title).tag($0) }
           }
           .labelsHidden().fixedSize()
         }
-        SettingRow("Close when unused for", detail: "A mini browser left unfocused closes itself") {
+        SettingRow("Close when unused for", detail: "A mini browser left unfocused closes itself", symbol: "clock.arrow.circle") {
           Picker("Close when unused for", selection: Binding(get: { Prefs.miniIdleHours }, set: { Prefs.set(.miniIdleHours, $0) })) {
             ForEach(Self.idle, id: \.0) { Text($0.1).tag($0.0) }
           }
@@ -338,16 +321,16 @@ struct CommandBarSettings: View {
   var body: some View {
     Columns {
       Section("Command Bar") {
-        SettingToggle("⌘L edits the front tab's address", detail: "In the command bar over the window; ⌥Return opens a new tab",
+        SettingToggle("⌘L edits the front tab's address", detail: "In the command bar over the window; ⌥Return opens a new tab", symbol: "command",
                       isOn: Prefs.binding(.omniboxL))
-        SettingToggle("⌘T opens a new tab", detail: "From the command bar, with the most used sites listed",
+        SettingToggle("⌘T opens a new tab", detail: "From the command bar, with the most used sites listed", symbol: "text.cursor",
                       isOn: Prefs.binding(.omniboxT))
       }
     } right: {
       Section("Suggestions") {
-        SettingToggle("Google suggestions", detail: "What is typed goes to Google as it is typed", isOn: Prefs.binding(.omniboxSuggestions))
+        SettingToggle("Google suggestions", detail: "What is typed goes to Google as it is typed", symbol: "globe", isOn: Prefs.binding(.omniboxSuggestions))
         if model.safariInPlay {
-          StatusRow(title: "Full Disk Access", detail: "For Safari's history and bookmarks", ok: model.fullDiskAccess, okText: "Allowed",
+          StatusRow(title: "Full Disk Access", detail: "For Safari's history and bookmarks", symbol: "lock.shield", ok: model.fullDiskAccess, okText: "Allowed",
                     button: "Open Settings…") { GeneralModel.openPrivacyPane("Privacy_AllFiles") }
         }
       }
@@ -366,9 +349,10 @@ struct PlayerSettings: View {
   var body: some View {
     Columns {
       Section("Mini Player") {
-        SettingToggle("Mini player on the tab sidebar", detail: "Artwork, title and controls while a music tab plays behind",
+        SettingToggle("Mini player on the tab sidebar", detail: "Artwork, title and controls while a music tab plays behind", symbol: "music.note",
                       isOn: Prefs.binding(.player))
-        SettingToggle("Stop the browser's pop-out player", detail: "On the listed sites, when their tab is left", isOn: Prefs.binding(.playerStopPopout))
+        SettingToggle("Stop the browser's pop-out player", detail: "On the listed sites, when their tab is left", symbol: "speaker.wave.2",
+                      isOn: Prefs.binding(.playerStopPopout))
           .disabled(!Prefs.player)
       }
     } right: {
@@ -384,5 +368,44 @@ struct PlayerSettings: View {
         .padding(.vertical, 2)
       }
     }
+  }
+}
+
+// MARK: Profiles
+
+struct ProfilesSettings: View {
+  @ObservedObject var model: GeneralModel
+
+  var body: some View {
+    Columns {
+      Section("Browser Profiles") {
+        if model.connected.isEmpty {
+          Text("No profile has connected").foregroundStyle(.secondary)
+        } else {
+          ForEach(model.connected) { profile in
+            HStack(spacing: 8) {
+              Image(nsImage: profile.appIcon).resizable().frame(width: 18, height: 18).help(profile.browser)
+              ProfileAvatar(name: profile.name, size: 18)
+              Text(profile.name).foregroundStyle(.secondary)
+            }
+          }
+        }
+        HStack {
+          Button(model.browser == .safari ? "Safari Extension Settings…" : "Install Extension…", action: model.installExtension)
+          if model.browser == .chrome { Button("Extension Shortcuts…", action: model.openExtensionShortcuts) }
+        }
+        if model.browserWarning != nil { Button("Relaunch Chrome…", action: model.relaunchChrome) }
+      }
+    } right: {
+      Section("Profile Keys") {
+        SettingToggle("Next and previous profile", keys: "⌃⌥→, ⌃⌥←", detail: "Off if a window manager uses these keys", symbol: "arrow.left.arrow.right",
+                      isOn: Prefs.binding(.profileArrows))
+        SettingToggle("Profile by number", keys: "⌃⌥1 to ⌃⌥9", detail: "By place in the browser's profile menu", symbol: "number",
+                      isOn: Prefs.binding(.profileDigits))
+        SettingToggle("Profile HUD", detail: "Shows the profiles for 1.2 seconds on a switch", symbol: "eye",
+                      isOn: Prefs.binding(.profileHUD))
+      }
+    }
+    .onReceive(refreshTimer) { _ in model.refresh() }
   }
 }

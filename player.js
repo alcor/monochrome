@@ -27,7 +27,7 @@ chrome.tabs.onUpdated.addListener((id, change) => {
 });
 
 async function playerState() {
-  if (!music.size) return null;
+  if (!PREFS.player || !music.size) return null; // Settings → Player
   const audible = (await chrome.tabs.query({ audible: true })).find(t => music.has(t.id));
   if (audible) lastPlayed = audible.id;
   const id = music.has(lastPlayed) ? lastPlayed : [...music.keys()].at(-1);

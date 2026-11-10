@@ -7,13 +7,28 @@
   // keep a copy so the player's buttons can call them too.
   const handlers = {};
   const setActionHandler = MediaSession.prototype.setActionHandler;
+  // With this action a site asks Chrome to pop its own mini player out into a floating window when
+  // you switch tabs; on music sites the sidebar player does that job, so it is held back. It is passed
+  // on only once music-relay.js says the setting is off (Settings → Player), since the site may set it
+  // before the relay's word arrives.
+  const PIP = 'enterpictureinpicture';
+  let pip = null, stopPopout = true;
+  const passPip = () => {
+    try { setActionHandler.call(navigator.mediaSession, PIP, stopPopout ? null : pip); } catch {} // a browser that doesn't know it
+    if (stopPopout || !pip) delete handlers[PIP];
+    else handlers[PIP] = pip;
+  };
   MediaSession.prototype.setActionHandler = function (action, handler) {
-    // With this action a site asks Chrome to pop its own mini player out into a floating window when
-    // you switch tabs; on music sites the sidebar player does that job, so don't pass it on.
-    if (action === 'enterpictureinpicture') return;
+    if (action === PIP) { pip = handler; if (!stopPopout) passPip(); return; }
     setActionHandler.call(this, action, handler); // throws for an action the browser doesn't know
     handlers[action] = handler;
   };
+  addEventListener('message', e => {
+    const prefs = e.source === window && e.data?.monochromeMusicPrefs;
+    if (!prefs || prefs.stopPopout === stopPopout) return;
+    stopPopout = prefs.stopPopout;
+    if (pip) passPip();
+  });
 
   let sent, sentAt = 0;
   setInterval(() => {

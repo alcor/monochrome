@@ -7,7 +7,7 @@
 // - "Open in Chrome" moves the page into the main window as a normal tab; ▾ picks a window or tab group, or another profile (the app opens it there)
 //   (both also have shortcuts, see README)
 // - an "Open in Chrome" bar sits top-right of the page (mini-browser-bar.js)
-// - left unfocused for 12 hours, a mini browser closes
+// - left unfocused for 12 hours (Settings → Mini Browsers → Close when unused for), a mini browser closes
 // mini browsers are Chrome popup windows: no tab strip, no sidebar, back with ⌘[.
 //
 // Links from other apps come through the helper app, the default browser (helper/App.swift), straight to
@@ -17,7 +17,6 @@
 // focused window inset on every side.
 const MINI_SIZE = { width: 900, height: 700 };
 const MINI_INSET = 40;
-const MINI_ARCHIVE_MS = 12 * 60 * 60 * 1000;
 
 // The open mini browsers' window ids, in memory for the checks that run per window event; session
 // storage holds the rest and is read back once when the worker starts.
@@ -138,7 +137,7 @@ async function moveToMain(tabId, { windowId, groupId } = {}) {
     const w = await chrome.windows.create({ tabId, type: 'normal', focused: true });
     return w;
   }
-  await chrome.tabs.move(tabId, { windowId, index: groupId ? -1 : await topIndex(windowId) });
+  await chrome.tabs.move(tabId, { windowId, index: groupId || !PREFS.newTabsAtTop ? -1 : await topIndex(windowId) });
   if (groupId) await chrome.tabs.group({ groupId, tabIds: tabId });
   await chrome.tabs.update(tabId, { active: true });
   await chrome.windows.update(windowId, { focused: true });
@@ -157,19 +156,32 @@ async function showMiniBar(tabId) {
 }
 
 async function archiveMiniBrowsers(now = Date.now()) {
+  if (!PREFS.miniIdleHours) return; // never
   const { mini, focused } = await miniState();
   for (const [id, last] of Object.entries(mini)) {
-    if (+id !== focused && now - last > MINI_ARCHIVE_MS) await chrome.windows.remove(+id).catch(() => {});
+    if (+id !== focused && now - last > PREFS.miniIdleHours * 3600e3) await chrome.windows.remove(+id).catch(() => {});
   }
 }
 
-// Links from other apps. Startup pages also arrive as 'start_page'; starting() leaves those alone.
+// Links from other apps that reached the browser without the app. Startup pages also arrive as
+// 'start_page'; starting() leaves those alone. Settings → Mini Browsers → Links from other apps
+// (routeDefault): a mini browser; a new tab in the front window, which this one already is; or a tab
+// already on that site, which takes the link while this one closes.
 chrome.webNavigation.onCommitted.addListener(async d => {
   if (d.frameId !== 0 || d.transitionType !== 'start_page' || starting()) return;
   const tab = await chrome.tabs.get(d.tabId).catch(() => null);
   if (!tab || tab.pinned || (await isMiniBrowser(tab.windowId))) return;
   const win = await chrome.windows.get(tab.windowId);
   if (win.type !== 'normal') return;
+  if (PREFS.routeDefault === 'front') return;
+  if (PREFS.routeDefault === 'same-site') {
+    await ready;
+    const other = sameSiteTab(d.url, tab.windowId, d.tabId);
+    if (!other) return;
+    await chrome.tabs.update(other.id, other.url === d.url ? { active: true } : { url: d.url, active: true });
+    await chrome.windows.update(other.windowId, { focused: true });
+    return chrome.tabs.remove(d.tabId).catch(() => {});
+  }
   await openMiniBrowser({ tabId: d.tabId });
 });
 

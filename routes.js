@@ -26,7 +26,7 @@ async function routeOpen(url, to = {}) {
   if (!windowId) return miniBrowserTab(url);
   recreating++; // placed here, not by the new-tab rules
   try {
-    const tab = await chrome.tabs.create({ url, windowId, active: true, index: groupId === null ? await topIndex(windowId) : undefined });
+    const tab = await chrome.tabs.create({ url, windowId, active: true, index: groupId === null && PREFS.newTabsAtTop ? await topIndex(windowId) : undefined });
     if (to.group) {
       const id = await chrome.tabs.group(groupId === null ? { tabIds: tab.id, createProperties: { windowId } } : { groupId, tabIds: tab.id });
       if (groupId === null) await chrome.tabGroups.update(id, { title: to.group });
@@ -40,10 +40,10 @@ async function routeOpen(url, to = {}) {
 
 const miniBrowserTab = async url => (await openMiniBrowser({ url })).tabs[0].id;
 
-function sameSiteTab(url, frontWindowId) {
+function sameSiteTab(url, frontWindowId, exceptTabId) {
   const host = hostOf(url);
   if (!host) return null;
-  const tabs = mruList().map(id => ({ id, ...tabInfo.get(id) })).filter(t => hostOf(t.url) === host);
+  const tabs = mruList().filter(id => id !== exceptTabId).map(id => ({ id, ...tabInfo.get(id) })).filter(t => hostOf(t.url) === host);
   return tabs.find(t => t.url === url && t.windowId === frontWindowId)
     || tabs.find(t => t.windowId === frontWindowId)
     || tabs.find(t => t.url === url)

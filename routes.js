@@ -3,7 +3,10 @@
 // window "same-site": a tab already on that host, the front window's first, navigated if the URL
 // differs; none, a new tab at the top of the front window. window "front": that new tab. group: a
 // tab group by title, joined in whatever window has it, made in the front window if none does.
+// Safari has no tab groups: a group destination there opens as the new tab at the top of the front
+// window, without the group.
 async function routeOpen(url, to = {}) {
+  if (to.group && !HAS_GROUPS) to = { window: 'front' };
   if (!to.window && !to.group) return miniBrowserTab(url);
   await ready;
   const front = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);

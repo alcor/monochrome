@@ -15,6 +15,7 @@
 //                   the extension's host is connected
 //   --routes [url [sender]]  the link rules (Routes.swift) and, for a URL, the rule it would take
 //   --settings      open the settings window of the running app (started if it is not)
+//   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)
 // Log: log stream --info --predicate 'subsystem == "com.artifact.monochrome"' (Accessibility shows there; asking
 // from a shell would report the terminal's grant, not the app's)
 import AppKit
@@ -55,9 +56,12 @@ case "--demo-shade":
   app.run()
 case "--status":
   print("layout: n=\(Keyboard.code(for: "n", qwerty: 45)) o=\(Keyboard.code(for: "o", qwerty: 31)) l=\(Keyboard.code(for: "l", qwerty: 37)) .=\(Keyboard.code(for: ".", qwerty: 47)) ,=\(Keyboard.code(for: ",", qwerty: 43)) (keycodes under the current keyboard layout)")
+  print("browser:", Browser.current.name)
   print("app:", NSRunningApplication.runningApplications(withBundleIdentifier: App.bundleId).isEmpty ? "not running" : "running")
   print("host:", Socket.connect(Socket.path).map { close($0); return "socket up" } ?? "socket down")
   exit(0)
+case "--check-safari":
+  exit(SafariCheck.run(CommandLine.arguments.dropFirst(2).first))
 case "--routes":
   let rest = CommandLine.arguments.dropFirst(2)
   Routes.print(url: rest.first, from: rest.dropFirst().first)

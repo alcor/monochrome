@@ -14,6 +14,15 @@
 // closing a window that has locked tabs and then quitting can shift URLs by one.
 // "Replace pinned URL with current" or re-locking fixes a wrong one.
 
+// Safari runs the same files (docs/safari.md). It has no tab groups, so there only pinned tabs are
+// locked; each feature checks for its API (chrome.tabGroups, chrome.search) rather than for Safari.
+// SAFARI itself is for what differs by browser rather than by API: the native messaging transport
+// (helper.js) and the browser's name in the bar.
+const SAFARI = chrome.runtime.getURL('').startsWith('safari-web-extension:');
+const BROWSER_NAME = SAFARI ? 'Safari' : 'Chrome';
+const HAS_GROUPS = !!chrome.tabGroups;
+const inGroup = t => HAS_GROUPS && t.groupId !== undefined && t.groupId !== -1;
+
 // The locked group's title, set on the options page; CoreCore until then.
 let LOCKED_GROUPS = ['CoreCore'];
 chrome.storage.local.get('lockedGroup').then(({ lockedGroup }) => { if (lockedGroup) LOCKED_GROUPS = [lockedGroup]; });
@@ -42,7 +51,8 @@ async function loadState() {
   tabs.forEach(noteTab);
   const { mru: saved = [] } = await chrome.storage.session.get('mru');
   const known = saved.filter(id => tabInfo.has(id));
-  const rest = tabs.filter(t => !known.includes(t.id)).sort((a, b) => b.lastAccessed - a.lastAccessed);
+  // Safari has no lastAccessed: restored tabs keep the order the query gave until visited.
+  const rest = tabs.filter(t => !known.includes(t.id)).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
   mru = [...known, ...rest.map(t => t.id)];
   await sync();
 }
@@ -61,7 +71,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
 });
 
 async function lockedTabs() {
-  const groups = await chrome.tabGroups.query({});
+  const groups = HAS_GROUPS ? await chrome.tabGroups.query({}) : [];
   const locked = new Map(groups.filter(g => LOCKED_GROUPS.includes(g.title)).map(g => [g.id, g]));
   const tabs = await chrome.tabs.query({});
   return {
@@ -105,7 +115,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 });
 chrome.tabs.onMoved.addListener(resync);
 chrome.tabs.onAttached.addListener(resync);
-chrome.tabGroups.onUpdated.addListener(resync);
+if (HAS_GROUPS) chrome.tabGroups.onUpdated.addListener(resync);
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (!('pinned' in change) && !('groupId' in change)) return;
@@ -113,7 +123,7 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
     // Chrome also reports pinned:false / ungrouped just before closing a tab; that's not a real unlock.
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab) return;
-    const group = tab.groupId === -1 ? null : await chrome.tabGroups.get(tab.groupId);
+    const group = inGroup(tab) ? await chrome.tabGroups.get(tab.groupId) : null;
     const isLocked = tab.pinned || LOCKED_GROUPS.includes(group?.title);
     await sync(p => { if (isLocked) p[tabId] ??= tab.url || tab.pendingUrl; else delete p[tabId]; });
     if (isLocked) injectPeekCatch(tabId);
@@ -132,7 +142,7 @@ chrome.tabs.onRemoved.addListener((tabId, { isWindowClosing }) => {
     recreating++;
     try {
       const tab = await chrome.tabs.create({ url, pinned: !at.group, active: false, windowId: at.windowId, index: at.index });
-      if (at.group) {
+      if (at.group && HAS_GROUPS) {
         const [g] = await chrome.tabGroups.query({ windowId: at.windowId, title: at.group });
         const groupId = await chrome.tabs.group(g ? { groupId: g.id, tabIds: tab.id } : { tabIds: tab.id, createProperties: { windowId: at.windowId } });
         if (!g) await chrome.tabGroups.update(groupId, { title: at.group, color: at.color });
@@ -161,7 +171,7 @@ async function isLocked(tabId) {
 }
 
 async function topIndex(windowId, exceptTabId) {
-  const groups = await chrome.tabGroups.query({ windowId });
+  const groups = HAS_GROUPS ? await chrome.tabGroups.query({ windowId }) : [];
   const locked = new Set(groups.filter(g => LOCKED_GROUPS.includes(g.title)).map(g => g.id));
   const tabs = await chrome.tabs.query({ windowId });
   return tabs.filter(t => t.id !== exceptTabId && (t.pinned || locked.has(t.groupId)))
@@ -202,7 +212,7 @@ chrome.tabs.onCreated.addListener(created => {
       openPeekBrowser({ tabId: tab.id }, { id: tab.openerTabId, windowId: tab.windowId }).catch(console.error);
       return;
     }
-    if (tab.groupId !== -1) {
+    if (inGroup(tab)) {
       if (!LOCKED_GROUPS.includes((await chrome.tabGroups.get(tab.groupId)).title)) return;
       await chrome.tabs.ungroup(tab.id);
     }
@@ -311,7 +321,7 @@ chrome.action.onClicked.addListener(reset);
 // The options page asks what it shows.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg.status) return;
-  reply({ helper: !!helper, lockedGroup: LOCKED_GROUPS[0] });
+  reply({ helper: helperUp(), lockedGroup: LOCKED_GROUPS[0] });
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {

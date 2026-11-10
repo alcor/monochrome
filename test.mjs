@@ -410,6 +410,44 @@ const idFromKey = key => [...crypto.createHash('sha256').update(Buffer.from(key,
 assert.equal(await sw.evaluate(() => chrome.runtime.id), idFromKey(JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).key));
 console.log('extension id from the manifest key: ok');
 
+// Safari: the generated manifest drops what is Chrome's alone, and the stand-ins for Chrome's search and
+// favicon APIs build the URLs Safari uses (Google search, Google's favicon service).
+{
+  const out = path.join(profile, 'safari-manifest.json');
+  const gen = spawn('python3', [path.join(ext, 'store/safari-manifest.py'), path.join(ext, 'manifest.json'), out], { stdio: 'inherit' });
+  assert.equal(await new Promise(r => gen.on('exit', r)), 0);
+  const m = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.equal(m.key, undefined);
+  assert.equal(m.minimum_chrome_version, undefined);
+  for (const p of ['tabGroups', 'search', 'favicon']) assert.ok(!m.permissions.includes(p), p);
+  assert.ok(m.permissions.includes('nativeMessaging'));
+  assert.equal(m.version, JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8')).version);
+  const urls = await sw.evaluate(() => [searchUrl('a b&c'), faviconUrl('https://news.example.com/x?y', false), faviconUrl('about:blank', false),
+    faviconUrl('https://example.com/'), SAFARI, HAS_GROUPS]);
+  assert.deepEqual(urls.slice(0, 3), ['https://www.google.com/search?q=a%20b%26c',
+    'https://www.google.com/s2/favicons?domain_url=https%3A%2F%2Fnews.example.com&sz=32', null]);
+  assert.match(urls[3], /\/_favicon\/\?pageUrl=/); // Chrome keeps its own favicon cache
+  assert.deepEqual(urls.slice(4), [false, true]);
+  console.log('safari: manifest, search and favicon stand-ins: ok');
+
+  // Messages from the app in Safari come wrapped by dispatchMessage and may name another profile.
+  const unwrapped = await sw.evaluate(() => {
+    const open = { open: 'https://example.com/', to: { window: 'front' }, safariProfile: 'A' };
+    return [helperUnwrap({ name: 'monochrome', userInfo: open }, true, 'A'), helperUnwrap({ name: 'monochrome', userInfo: open }, true, 'B'),
+      helperUnwrap({ name: 'monochrome', userInfo: { ping: true } }, true, 'B'), helperUnwrap(open, true, null),
+      helperUnwrap({ activate: 3 }, false, null), helperUnwrap(null, true, 'A')];
+  });
+  assert.deepEqual(unwrapped[0], { open: 'https://example.com/', to: { window: 'front' }, safariProfile: 'A' });
+  assert.equal(unwrapped[1], null); // another profile's link
+  assert.deepEqual(unwrapped[2], { ping: true }); // no profile named: every copy
+  assert.equal(unwrapped[3].open, 'https://example.com/'); // profile not known yet: taken
+  assert.deepEqual(unwrapped[4], { activate: 3 }); // Chrome: as sent
+  assert.equal(unwrapped[5], null);
+  // focusFront, the app's switch to a connected Safari profile, focuses this copy's last normal window.
+  assert.equal(await sw.evaluate(() => focusFront()), await sw.evaluate(async () => (await chrome.windows.getLastFocused({ windowTypes: ['normal'] })).id));
+  console.log('safari: profile message unwrapping and focusFront: ok');
+}
+
 // A music site's track reaches the player, and the player's buttons reach the site's handlers.
 await ctx.route('https://open.spotify.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>
   navigator.mediaSession.metadata = new MediaMetadata({ title: 'Song', artist: 'Band', artwork: [{ src: '/small.png' }, { src: '/big.png' }] });
@@ -459,6 +497,66 @@ if (fs.existsSync(helperBinary)) {
   assert.equal(await new Promise(r => p.on('exit', r)), 0);
   console.log('helper: host reads messages, quits with Chrome: ok');
 } else console.log('helper: host: skipped (run make build)');
+
+// The app's Safari readers (helper/Safari.swift), on given input: profile names from File → New Window's
+// item titles, the 27.3 gate for vertical tabs, the sidebar pick, the profile envelope that goes to
+// dispatchMessage, and the App Shortcuts written to a scratch domain (never Safari's own).
+if (fs.existsSync(helperBinary)) {
+  const check = async request => {
+    const p = spawn(helperBinary, ['--check-safari', JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    const code = await new Promise(r => p.on('exit', r));
+    return { code, result: out ? JSON.parse(out).result : undefined };
+  };
+  const strings = (await check({ op: 'strings' })).result;
+  console.log(`safari: titles in use: "${strings.profileWindow}", "${strings.privateWindow}", Safari ${strings.version || 'not found'}`);
+  const titles = ['New Personal Window', 'New Work (acme.com) Window', 'New Private Window', 'New Window', 'New Tab', 'New  Window', 'New Work (acme.com) Window'];
+  assert.deepEqual((await check({ op: 'profiles', titles, format: 'New %@ Window', private: 'New Private Window' })).result, ['Personal', 'Work (acme.com)']);
+  assert.deepEqual((await check({ op: 'profiles', titles: ['Nouvelle fenêtre Travail'], format: 'Nouvelle fenêtre %@', private: 'Nouvelle fenêtre privée' })).result, ['Travail']);
+  assert.deepEqual((await check({ op: 'profiles', titles: ['New Personal Window'] })).result, ['Personal']); // Safari.framework's own format
+  for (const [v, want] of [['27.2', false], ['27.3', true], ['27.10', true], ['28.0', true], ['26.4', false], ['', false]]) {
+    assert.equal((await check({ op: 'version', version: v })).result, want, v);
+  }
+  const win = [100, 50, 1200, 800];
+  const sidebar = { role: 'AXOutline', frame: [100, 102, 260, 748], tabs: 1 };
+  assert.deepEqual((await check({ op: 'sidebar', window: win, candidates: [
+    { role: 'AXScrollArea', frame: [100, 102, 260, 748], tabs: 1 }, sidebar, { role: 'AXGroup', frame: [360, 102, 940, 748], tabs: 0 },
+  ] })).result, [100, 102, 260, 748]);
+  assert.equal((await check({ op: 'sidebar', window: win, candidates: [{ ...sidebar, tabs: 0 }] })).result, null); // no tab items
+  assert.equal((await check({ op: 'sidebar', window: win, candidates: [{ ...sidebar, frame: [1040, 102, 260, 748] }] })).result, null); // not at the left edge
+  assert.equal((await check({ op: 'sidebar', window: win, candidates: [{ ...sidebar, frame: [100, 102, 260, 200] }] })).result, null); // too short
+  assert.equal((await check({ op: 'sidebar', window: win, candidates: [] })).result, null);
+  // A routed link for one Safari profile names it; the copy of the extension in that profile takes it.
+  const wrapped = (await check({ op: 'wrap', profile: 'F00D-1', message: { open: 'https://example.com/', to: { window: 'same-site' } } })).result;
+  assert.deepEqual(wrapped, { open: 'https://example.com/', to: { window: 'same-site' }, safariProfile: 'F00D-1' });
+  assert.deepEqual((await check({ op: 'wrap', profile: '', message: { ping: true } })).result, { ping: true });
+  assert.deepEqual(await sw.evaluate(w => [helperUnwrap({ name: 'monochrome', userInfo: w }, true, 'F00D-1')?.open ?? null,
+    helperUnwrap({ name: 'monochrome', userInfo: w }, true, 'BEEF-2')], wrapped), ['https://example.com/', null]);
+  // App Shortcuts, against a scratch domain; Safari's own is refused.
+  assert.equal((await check({ op: 'shortcuts', domain: 'com.apple.Safari' })).code, 2);
+  const domain = `com.artifact.monochrome.test-shortcuts-${process.pid}`;
+  const plist = path.join(os.homedir(), 'Library/Preferences', `${domain}.plist`);
+  try {
+    const before = spawn('defaults', ['write', domain, 'NSUserKeyEquivalents', '-dict', 'Keep Me', '@k']);
+    assert.equal(await new Promise(r => before.on('exit', r)), 0);
+    const written = await check({ op: 'shortcuts', domain });
+    assert.equal(written.result.written, true);
+    const exported = spawn('sh', ['-c', `defaults export ${domain} - | plutil -convert json -o - -`], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let json = '';
+    exported.stdout.on('data', d => { json += d; });
+    await new Promise(r => exported.on('exit', r));
+    const keys = JSON.parse(json).NSUserKeyEquivalents;
+    assert.deepEqual(keys, { 'Keep Me': '@k', ...written.result.shortcuts });
+    assert.deepEqual(Object.keys(written.result.shortcuts).sort(), ['Hide Sidebar', 'Save As…', 'Show Next Tab', 'Show Previous Tab', 'Show Sidebar']);
+    assert.equal(keys['Show Next Tab'], '@~\uF701');
+    assert.equal((await check({ op: 'shortcuts', domain })).result.written, true); // already in place: unchanged
+  } finally {
+    await new Promise(r => spawn('defaults', ['delete', domain], { stdio: 'ignore' }).on('exit', r));
+    fs.rmSync(plist, { force: true });
+  }
+  console.log('safari: profile titles, vertical tab gate, sidebar pick, profile envelope, App Shortcuts: ok');
+} else console.log('safari: app readers: skipped (run make build)');
 
 await ctx.close();
 

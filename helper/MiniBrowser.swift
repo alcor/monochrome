@@ -203,7 +203,7 @@ final class MiniBrowserBar: NSObject, NSTextFieldDelegate {
     self.otherProfiles = otherProfiles
     // "Nicholas (jitkoff.com)" is shown as its account, jitkoff.com; a name without one is shown whole.
     let profile = w.profile.map { name in name.split(separator: "(", maxSplits: 1).last.map { $0.replacingOccurrences(of: ")", with: "").trimmingCharacters(in: .whitespaces) } ?? name }
-    let title = "Open in " + (profile ?? "Chrome") + (shortcuts["mini-open"].map { "  " + $0 } ?? "")
+    let title = "Open in " + (profile ?? Browser.current.name) + (shortcuts["mini-open"].map { "  " + $0 } ?? "")
     if open.title != title {
       open.attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.labelColor])
       open.sizeToFit()

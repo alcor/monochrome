@@ -1,6 +1,6 @@
 # make project   Monochrome.xcodeproj from project.yml (XcodeGen: brew install xcodegen)
 # make build     Release build into build/
-# make install   build into ~/Applications/Monochrome.app and open it; the app installs the rest
+# make install   build, link ~/Applications/Monochrome.app to it and open it; the app installs the rest
 #                itself at launch (helper/Install.swift)
 # make test      the extension's and host's tests (needs a build for the host ones)
 # make release VERSION=1.1   version into project.yml and manifest.json, a Developer ID build notarized by
@@ -26,22 +26,22 @@ build: project
 
 # By process, not by bundle id: "tell application id ... to quit" resolves the id to the newest bundle,
 # the one just built, and launches that copy to quit it.
-# Built in place, with Xcode's install action into $(HOME)/Applications, not copied from build/:
-# xcodebuild registers every app it builds with LaunchServices (Swift Build does it for any macOS app,
-# with no setting to stop it), and while macOS knows two copies of the Safari app extension Safari keeps
-# whichever it took last and refuses the other ("other version in use"), so the app's messages to Safari
-# fail. Built here there is one copy. The app keeps running its old code until the pkill; a second pkill
-# stops any copy the Safari extension started (by bundle id) in between.
-install: project
-	xcodebuild -project Monochrome.xcodeproj -scheme Monochrome -configuration Release -destination "generic/platform=macOS" \
-	  -derivedDataPath $(DERIVED) -allowProvisioningUpdates -quiet DSTROOT="$(HOME)" INSTALL_PATH=/Applications install
-	@test -d "$(INSTALLED)"
-	$(LSREGISTER) -u "$(APP)" 2>/dev/null || true
+# ~/Applications/Monochrome.app is a symlink to the build, not a copy: xcodebuild registers every app it
+# builds with LaunchServices (Swift Build does it for any macOS app, with no setting to stop it), and
+# while macOS knows two copies of the Safari app extension Safari keeps whichever it took last and
+# refuses the other ("other version in use"), so the app's messages to Safari fail. With the link there
+# is one copy, and the app runs from build/ (its host manifest, login item and Dock tile name that
+# path). A second pkill stops any copy the Safari extension started (by bundle id) in between.
+install: build
+	$(LSREGISTER) -u "$(INSTALLED)" 2>/dev/null || true
 	pkill -x Monochrome 2>/dev/null || true
 	sleep 0.5
+	mkdir -p "$(HOME)/Applications"
+	rm -rf "$(INSTALLED)"
+	ln -s "$(CURDIR)/$(APP)" "$(INSTALLED)"
 	pkill -x Monochrome 2>/dev/null || true
 	open "$(INSTALLED)"
-	@echo "installed: $(INSTALLED) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
+	@echo "installed: $(INSTALLED) -> $(CURDIR)/$(APP) (allow it under System Settings → Privacy & Security → Accessibility if asked)"
 
 # The build as it is, registering the host only: no login item, Dock tile, default browser or App Shortcuts.
 run: build

@@ -497,8 +497,8 @@ await close(song);
 assert.equal(await sw.evaluate(id => music.has(id), song), false);
 console.log('mini player: track info and buttons: ok');
 
-// The helper's host role (if built: make build, or make install, which builds into ~/Applications)
-// reads a message that arrives in pieces, stays up without the app half, and quits when Chrome closes
+// The helper's host role (if built: make build, or make install; ~/Applications/Monochrome.app, a
+// release, otherwise) reads a message that arrives in pieces, stays up without the app half, and quits when Chrome closes
 // the connection.
 const builtApp = path.join(ext, 'build/Build/Products/Release/Monochrome.app');
 const helperApp = fs.existsSync(builtApp) ? builtApp : path.join(os.homedir(), 'Applications/Monochrome.app');

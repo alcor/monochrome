@@ -1,5 +1,5 @@
 // The settings window, laid out as Quicksilver's: tabs in the toolbar with their icons, grouped forms
-// on a sidebar-material backdrop, and a footer under the first tab. General holds the app's own
+// on a sidebar-material backdrop, with no explanatory footers. General holds the app's own
 // switches and what it can see of Chrome; Routes edits the link rules (Routes.swift), written back to
 // routes.json as they change. Monochrome has no Dock presence of its own (LSUIElement); while this
 // window is on screen it is an app in the Dock with a menu bar, so the window can be found and
@@ -224,8 +224,6 @@ struct GeneralSettings: View {
           LabeledContent("Version " + model.version) { Button("Check for Updates…", action: onCheckForUpdates) }
         } header: {
           Text("Monochrome")
-        } footer: {
-          Text("Browser is where links from other apps open and the one started at login. ⌃Tab, the panels and the profile hotkeys work in Chrome and Safari alike, following whichever is in front. Accessibility is how Monochrome sees ⌃Tab and the other shortcuts, and reads Chrome's Profiles menu. Turn off the profile hotkeys if a window manager such as Rectangle uses those keys.")
         }
       }
       Form {
@@ -254,12 +252,6 @@ struct GeneralSettings: View {
                 .help(warning)
                 .accessibilityLabel(warning)
             }
-          }
-        } footer: {
-          if model.browser == .safari {
-            Text("The Chrome and Safari profiles whose extension is talking to the app. In Safari, turn Monochrome on in the Extensions settings and allow it on every website.")
-          } else {
-            Text("The Chrome and Safari profiles whose extension is talking to the app. Install Extension… has the folder to drag onto chrome://extensions, once per profile.")
           }
         }
       }

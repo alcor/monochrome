@@ -59,6 +59,7 @@ final class OmniboxController: NSObject, NSWindowDelegate {
     panel.setFrameOrigin(origin)
     panel.makeKeyAndOrderFront(nil)
     panel.makeFirstResponder(field)
+    DispatchQueue.main.async { log.info("omnibox: shown, key \(self.panel.isKeyWindow), front app \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?", privacy: .public)") }
     model.shown = false
     DispatchQueue.main.async { withAnimation(.spring(duration: 0.18, bounce: 0.2)) { self.model.shown = true } }
   }
@@ -80,7 +81,10 @@ final class OmniboxController: NSObject, NSWindowDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: work)
   }
 
-  func windowDidResignKey(_ notification: Notification) { hide() }
+  func windowDidResignKey(_ notification: Notification) {
+    log.info("omnibox: lost the keyboard to \(NSApp.keyWindow?.title ?? "another app", privacy: .public)")
+    hide()
+  }
 
   // --omnibox-snapshot: the panel as the window server draws it, glass included, from the app's own
   // window (an app may read its own windows without the Screen Recording grant).

@@ -69,7 +69,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
       (NSHostingController(rootView: ProfilesSettings(model: model)), "Profiles", "person.2", 400),
       (NSHostingController(rootView: TabsSettings(model: model)), "Tabs", "sidebar.left", 500),
       (NSHostingController(rootView: MiniBrowserSettings()), "Mini Browsers", "macwindow.on.rectangle", 320),
-      (NSHostingController(rootView: CommandBarSettings(model: model)), "Command Bar", "magnifyingglass", 290),
+      (NSHostingController(rootView: CommandBarSettings(model: model)), "Command Bar", "magnifyingglass", 430),
       (NSHostingController(rootView: PlayerSettings()), "Player", "music.note", 300),
       (NSHostingController(rootView: RoutesSettings(model: rules)), "Router", "arrow.triangle.branch", 500), // the rules beside the selected one's fields
     ]

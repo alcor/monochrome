@@ -1,0 +1,77 @@
+{
+ "url": "https://fixture.test/docs",
+ "title": "Retry policies",
+ "lang": "en",
+ "blocks": [
+  {
+   "id": 2,
+   "kind": "paragraph",
+   "text": "A retry policy decides what Quill does with a job whose handler throws. By default a job is tried 5 times, with a delay that doubles after each failure, and is moved to the dead-letter queue after the last attempt. A policy is set per queue and can be overridden per job."
+  },
+  {
+   "id": 3,
+   "kind": "paragraph",
+   "text": "Retries are counted per job, not per worker. A job that fails on one worker and is picked up by another keeps its count, because the count is stored with the job in quill_jobs.attempts."
+  },
+  {
+   "id": 4,
+   "kind": "heading",
+   "text": "Configuring a policy"
+  },
+  {
+   "id": 5,
+   "kind": "paragraph",
+   "text": "Pass retry when you declare the queue. Every field is optional; the values below are the defaults."
+  },
+  {
+   "id": 7,
+   "kind": "paragraph",
+   "text": "With these values the delays are 1, 2, 4 and 8 seconds, each moved by up to 20% in either direction so that jobs which failed together do not retry together."
+  },
+  {
+   "id": 8,
+   "kind": "heading",
+   "text": "Backoff strategies"
+  },
+  {
+   "id": 9,
+   "kind": "table",
+   "text": "Delay before attempt n, with a base delay of 1 second Strategy | Attempt 2 | Attempt 3 | Attempt 4 fixed | 1 s | 1 s | 1 s linear | 1 s | 2 s | 3 s exponential | 1 s | 2 s | 4 s"
+  },
+  {
+   "id": 10,
+   "kind": "paragraph",
+   "text": "No delay is longer than maxDelayMs, which defaults to 60 seconds. An exponential policy with 12 attempts therefore waits 60 seconds from the eighth attempt on."
+  },
+  {
+   "id": 11,
+   "kind": "heading",
+   "text": "Errors that should not be retried"
+  },
+  {
+   "id": 12,
+   "kind": "paragraph",
+   "text": "Throw quill.Fatal to send a job straight to the dead-letter queue. Use it for failures that another attempt cannot fix, such as a payload that does not parse."
+  },
+  {
+   "id": 14,
+   "kind": "list",
+   "text": "A Fatal error counts as one attempt in the metrics. A handler that times out is retried like any other failure. The default timeout is 30 seconds. A worker that is killed mid-job does not use up an attempt. The job becomes visible again after its lease of 45 seconds runs out."
+  },
+  {
+   "id": 15,
+   "kind": "heading",
+   "text": "Observing retries"
+  },
+  {
+   "id": 16,
+   "kind": "paragraph",
+   "text": "Each retry emits a job.retry event with the attempt number and the delay. The backoff table above gives the delay you should expect to see. In version 3.2 and later the event also carries the error's class name."
+  }
+ ],
+ "want": {
+  "bullets": 5,
+  "facts": 6
+ },
+ "truncated": false
+}

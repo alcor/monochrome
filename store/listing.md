@@ -36,7 +36,7 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 
 ## Privacy practices
 
-**Single purpose:** Monochrome changes how Chrome's tabs behave: which tabs come back when closed, where new tabs go, how ⌃Tab orders them, and how links from other apps and from locked tabs open. Every feature is a tab behavior; none reads or changes page content.
+**Single purpose:** Monochrome changes how Chrome's tabs behave: which tabs come back when closed, where new tabs go, how ⌃Tab orders them, and how links from other apps and from locked tabs open. Every feature but one is a tab behavior that reads no page content. The exception is the reader: when the user asks for it on a page, the extension reads that page's text and media addresses and draws them over the page, with a summary first. Whether the reader fits this single purpose, or ships as its own extension, is open decision 1 in `docs/tldr.md` and is settled before the next submission.
 
 **Permission justifications:**
 
@@ -44,16 +44,16 @@ Works with Chrome's vertical tabs. Nothing is added to the window, and nothing l
 - `tabGroups`: recognize the locked group by title, put tabs back into it, and offer groups as places to move a mini browser's page.
 - `storage`: keep locked addresses, the recent-tab order and the locked group's title on the user's computer.
 - `webNavigation`: notice a navigation in a locked tab, to re-apply the peek catch in that tab's frames, and notice a link handed to Chrome by another app, to open it as a mini browser.
-- `scripting`: inject the peek catch into locked tabs only, and the fallback bar and shade into mini browser pages when the companion app is not running.
+- `scripting`: inject the peek catch into locked tabs only, the fallback bar and shade into mini browser pages when the companion app is not running, and the reader into the tab in front when the user asks for it.
 - `search`: run what the user types in a mini browser's box through their default search engine.
 - `alarms`: reconnect to the companion app and close mini browsers left unused for 12 hours while the service worker is otherwise idle.
 - `nativeMessaging`: talk to the Monochrome app on the user's Mac, which draws the switcher, bars and player, and routes links. The extension works without it.
 - `favicon`: show site icons in the switcher and the mini browser bar.
-- Host permission `<all_urls>`: capture a scaled-down picture of the tab in front for the switcher's thumbnails, which happens on activation without a click, and inject the peek catch into locked tabs on any site. No page content is read or stored; the picture is kept in the companion app's memory only.
+- Host permission `<all_urls>`: capture a scaled-down picture of the tab in front for the switcher's thumbnails, which happens on activation without a click, inject the peek catch into locked tabs on any site, and open the reader on whichever page the user asks for it. Page content is read only for the reader, on the page the user asks about, and is not stored; the picture is kept in the companion app's memory only.
 
 **Remote code:** No.
 
-**Data usage:** The extension does not collect or transmit user data. Tab addresses, titles and a picture of the front tab are passed to a companion app on the same computer over Chrome's native messaging port and are not sent anywhere else. (The companion app, not the extension, sends what is typed into its command bar to Google for suggestions, which can be turned off in its settings; `docs/privacy.md` lists its requests.) Certify: not sold, not used for unrelated purposes, not used for creditworthiness.
+**Data usage:** The extension does not collect or transmit user data. Tab addresses, titles and a picture of the front tab, and the text of a page the user opens the reader on (website content), are passed to a companion app on the same computer over Chrome's native messaging port and are not sent anywhere else; the page's text is summarized there by a language model that runs on the device. (The companion app, not the extension, sends what is typed into its command bar to Google for suggestions, which can be turned off in its settings; `docs/privacy.md` lists its requests.) Certify: not sold, not used for unrelated purposes, not used for creditworthiness.
 
 **Privacy policy URL:** https://artifact.com/privacy?Monochrome, the shared policy for Artifact apps with no tracking and no server; `docs/privacy.md` is the detailed statement for this one.
 
@@ -77,4 +77,5 @@ Without the app, nothing errors; the app's features are simply absent.
 
 ## Before submitting
 
+- Settle open decision 1 in `docs/tldr.md` (the reader inside this listing, or its own extension) before a package with the reader is uploaded; the single-purpose statement above is written for either answer.
 - After the first upload, install the store's copy once and run `store/adopt-key.sh <id>` so the unpacked extension takes the store's ID.

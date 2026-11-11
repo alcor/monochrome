@@ -372,7 +372,7 @@ chrome.windows.onFocusChanged.addListener(async windowId => {
   if (tab) activated(tab.id);
 });
 
-importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js', 'omnibox.js');
+importScripts('mini-browser.js', 'routes.js', 'player.js', 'helper.js', 'omnibox.js', 'tldr-background.js');
 
 chrome.action.onClicked.addListener(reset);
 
@@ -396,4 +396,5 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'close-tab') return closeTabs();
   if (command === 'reset-tab') return reset(tab);
   if (command === 'repin-current') return repin(tab);
+  if (command === 'tldr') return tldrToggle(tab?.id);
 });

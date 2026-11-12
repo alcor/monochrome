@@ -71,7 +71,7 @@ The usual place for an extension's settings is its options page, backed by `chro
 **The message.** The app sends the whole set, never a delta:
 
 ```json
-{ "prefs": { "lockedTabs": true, "lockedGroup": "CoreCore", "newTabsAtTop": true,
+{ "prefs": { "lockedTabs": true, "lockedGroup": "Locked", "newTabsAtTop": true,
              "peek": true, "miniIdleHours": 12, "routeDefault": "mini",
              "thumbnails": true, "player": true, "playerStopPopout": true } }
 ```
@@ -140,7 +140,7 @@ The Browser Profiles list (each connected profile with its browser's icon and le
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
 | Locked tabs come back when closed | T | on | `lockedTabs`, sent | `lockedTabs()` in `background.js` | Pinned tabs reopen at their locked address; ⌃R resets one |
-| Locked group | text field, prompt "none" | CoreCore | `lockedGroup`, sent | `LOCKED_GROUPS` in `background.js` | Tabs in a Chrome tab group with this title lock too |
+| Locked group | text field, prompt "none" | Locked | `lockedGroup`, sent | `LOCKED_GROUPS` in `background.js` | Tabs in a Chrome tab group with this title lock too |
 | New tabs open at the top | T | on | `newTabsAtTop`, sent | `tabs.onCreated` in `background.js`; `moveToMain`; `routeOpen` | Directly under the locked tabs |
 | Collapse the tab sidebar ⌘S | T | on | `shortcutSidebar` | `Install.setChromeShortcuts`, `SafariShortcuts.write` | Save Page As moves to ⇧⌘S, after a browser restart |
 | Next and previous tab ⌥⌘↓, ⌥⌘↑ | T | on | `shortcutTabs` | same | Steps down and up the tab list, after a browser restart |
@@ -153,7 +153,7 @@ The Browser Profiles list (each connected profile with its browser's icon and le
 Notes on what each does when off:
 
 - `lockedTabs` off: nothing is locked, a closed tab stays closed, and the saved order is emptied, so turning it back on locks each tab at the address it then has.
-- `lockedGroup` empty: only pinned tabs lock. Today an empty title falls back to CoreCore.
+- `lockedGroup` empty: only pinned tabs lock. Today an empty title falls back to Locked.
 - `newTabsAtTop` off: new tabs, a mini browser moved into the browser and routed links land where the browser puts them. A new tab the browser drops into the locked group is still taken out.
 - `switcher` off: the tap passes ⌃Tab through and the browser's own order applies.
 - `switcherPanel` off: `useSwitcher` answers false, so the tap rewrites the keys to the extension's commands and tabs switch live, the path used today when the extension is not connected. It needs ⌃., ⌃⇧. and ⌃, bound in the browser.
@@ -176,8 +176,8 @@ Notes on what each does when off:
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
-| ⌘L edits the front tab's address | T | on | `omniboxL` | `App.openOmnibox(newTab: false)` | In the command bar; ⌥Return opens a new tab |
-| ⌘T opens a new tab | T | on | `omniboxT` | `App.openOmnibox(newTab: true)` | From the command bar, with the most used sites listed |
+| ⌘L edits the front tab's address | T | off | `omniboxL` | `App.openOmnibox(newTab: false)` | In the command bar; ⌥Return opens a new tab |
+| ⌘T opens a new tab | T | off | `omniboxT` | `App.openOmnibox(newTab: true)` | From the command bar, with the most used sites listed |
 | Google suggestions | T | on | `omniboxSuggestions` | `model.onSuggest` in `App.setUpOmnibox` | What is typed goes to Google as it is typed |
 | Full Disk Access | S Open Settings…, shown when Browser is Safari or a Safari profile is connected | | none | whether `SafariHistory.databaseURL` is readable | For Safari's history and bookmarks |
 | Reader ⌥⇧R | T | on | `tldr` | `Tap.swift`, then `tap.onReader` in `App.swift` | Summary and text of the page; ⌥⇧R no longer types ‰ |
@@ -249,7 +249,7 @@ These get no row, with the reason:
 2. `helperMessage({ prefs })` stores the set under `prefs` in `chrome.storage.local`; an unknown key is dropped.
 3. `newTabsAtTop` false: a new tab stays where Chromium puts it. True again: it goes under the locked tabs.
 4. `lockedTabs` false: a closed pinned tab stays closed.
-5. `lockedGroup` "Work": a tab in a Work group comes back and one in CoreCore does not. Empty: only pinned tabs lock.
+5. `lockedGroup` "Work": a tab in a Work group comes back and one in Locked does not. Empty: only pinned tabs lock.
 6. `peek` false: a `target="_blank"` link from a locked tab makes a tab and no popup window.
 7. `miniIdleHours` 0: `archiveMiniBrowsers` 13 hours on closes nothing. 1: two hours on closes it.
 8. `thumbnails` false: `helperThumbSoon` schedules nothing.
@@ -293,7 +293,7 @@ Each has a proposed default, which is what step 1 builds unless changed.
 6. **App Shortcuts off removes entries only when they still hold Monochrome's values.** Proposed: yes, so a shortcut someone reassigned is left alone.
 7. **Rows whose feature needs Accessibility or a connected extension that is missing.** Proposed: they stay enabled with no per-row warning; General and Browser show the two states.
 8. **Open Chrome when Monochrome starts, as a setting.** Proposed: keep it, default on. It is one guard and the only way to keep the login item without Chrome opening.
-9. **The options page keeps an editable group title while the app is away.** Proposed: yes. The alternative is a read-only page and CoreCore for anyone without the app.
+9. **The options page keeps an editable group title while the app is away.** Proposed: yes. The alternative is a read-only page and Locked for anyone without the app.
 10. **Switcher choices.** Proposed: 3 to 7 tabs and 0.1 to 0.5 seconds. `MRU_SENT` stays 12.
 
 ## What would reopen this

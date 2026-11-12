@@ -33,12 +33,12 @@ const inGroup = t => HAS_GROUPS && t.groupId !== undefined && t.groupId !== -1;
 // behaved before the settings existed. Unknown keys are dropped and missing ones keep their default.
 // The options page sets the locked group's title while the app is not connected.
 const PREF_DEFAULTS = {
-  lockedTabs: true, lockedGroup: 'CoreCore', newTabsAtTop: true, peek: true, miniIdleHours: 12,
+  lockedTabs: true, lockedGroup: 'Locked', newTabsAtTop: true, peek: true, miniIdleHours: 12,
   routeDefault: 'mini', thumbnails: true, player: true, playerStopPopout: true,
 };
 let PREFS = { ...PREF_DEFAULTS };
 // The locked group's title, or none: then only pinned tabs lock.
-let LOCKED_GROUPS = ['CoreCore'];
+let LOCKED_GROUPS = ['Locked'];
 
 function prefsFrom(p = {}) {
   const next = { ...PREF_DEFAULTS };
@@ -54,6 +54,7 @@ function prefsChanged(next) {
   PREFS = next;
   LOCKED_GROUPS = next.lockedGroup ? [next.lockedGroup] : [];
   // Off: nothing is locked and the saved order empties (sync), so on again locks each tab where it is.
+  if (before.lockedGroup !== next.lockedGroup) run(() => renameOldLockedGroup(next.lockedGroup));
   if (before.lockedTabs !== next.lockedTabs || before.lockedGroup !== next.lockedGroup) resync();
   if (before.peek !== next.peek) run(async () => peekEverywhere(next.peek));
   if (before.player !== next.player && typeof playerResend === 'function') playerResend();
@@ -68,9 +69,20 @@ async function applyPrefs(p) {
   return next;
 }
 
+// The locked group was titled CoreCore by default through 1.2.1. While the title in force is the new
+// default, a group still titled CoreCore takes it, so its tabs stay locked; run ahead of the resync.
+const OLD_LOCKED_GROUP = 'CoreCore';
+async function renameOldLockedGroup(title) {
+  if (!HAS_GROUPS || title !== PREF_DEFAULTS.lockedGroup) return false;
+  const old = await chrome.tabGroups.query({ title: OLD_LOCKED_GROUP });
+  for (const g of old) await chrome.tabGroups.update(g.id, { title });
+  return old.length > 0;
+}
+
 // At start: the last set, or (before the app ever sent one) the legacy title on its own.
 const prefsReady = chrome.storage.local.get(['prefs', 'lockedGroup']).then(({ prefs, lockedGroup }) => {
   prefsChanged(prefsFrom(prefs || (lockedGroup ? { lockedGroup } : {})));
+  run(async () => { if (await renameOldLockedGroup(PREFS.lockedGroup)) await sync(); });
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.prefs?.newValue) prefsChanged(prefsFrom(changes.prefs.newValue));
@@ -200,7 +212,7 @@ chrome.tabs.onRemoved.addListener((tabId, { isWindowClosing }) => {
   });
 });
 
-// New tabs open at the top of the tab list, just under the locked tabs (pinned, then the CoreCore
+// New tabs open at the top of the tab list, just under the locked tabs (pinned, then the locked
 // group), unless newTabsAtTop is off. A tab opened from a link in a normal tab stays where Chrome puts
 // it, right after that tab. One opened in the background from a locked tab goes to the top, and if
 // Chrome dropped it into the locked group it's taken out, so it doesn't get locked; one opened in the
@@ -226,7 +238,7 @@ async function topIndex(windowId, exceptTabId) {
 
 // peek's click catch (peek-click.js, and peek-open.js in the page's world) runs only in locked
 // tabs: put there when a tab locks and on each navigation of a locked tab. (A group renamed to or from
-// CoreCore isn't noticed; those tabs fall back to the tab-then-peek path until they navigate.) With
+// the locked group isn't noticed; those tabs fall back to the tab-then-peek path until they navigate.) With
 // Settings → Mini Browsers → Peek browsers off, it isn't put anywhere, and the scripts already in
 // locked tabs are told to stand down.
 async function injectPeekCatch(tabId, frameId) {

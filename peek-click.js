@@ -1,4 +1,4 @@
-// peek's click catch, put into locked tabs (pinned or CoreCore) by background.js, not into every page.
+// peek's click catch, put into locked tabs (pinned or in the locked group) by background.js, not into every page.
 // A plain click on a link that would open a new tab opens a peek instead, straight from the URL, so no
 // tab passes through the main window first. Unlocking the tab turns it off (background.js says so);
 // locking again puts the script back, which just turns it on. The locked flag also goes on <html> for

@@ -8,7 +8,10 @@
 // chrome.storage.local and runs on PREF_DEFAULTS (background.js) until it hears one, so the two
 // default lists must agree; `Monochrome --prefs --defaults` prints this side's and the tests compare.
 //
-// Every default is the behaviour before the settings existed. Two older switches are read as
+// Every default is the behaviour before the settings existed, except three: ⌘L and ⌘T are off until
+// switched on, so the browser's own address bar stays until someone asks for the command bar, and the
+// locked group is titled "Locked", not "CoreCore" (the extension renames a CoreCore group to match).
+// Two older switches are read as
 // fallbacks, not migrated: `omnibox` for omniboxL and omniboxT, `profileHotkeys` for profileArrows and
 // profileDigits. Nothing writes them again.
 //
@@ -28,11 +31,12 @@ enum Pref: String, CaseIterable {
 
   var defaultValue: Any {
     switch self {
-    case .lockedGroup: "CoreCore"
+    case .lockedGroup: "Locked"
     case .miniIdleHours: 12
     case .routeDefault: "mini"
     case .switcherDelay: 0.15
     case .switcherCount: 5
+    case .omniboxL, .omniboxT: false
     default: true
     }
   }
@@ -68,7 +72,7 @@ enum Prefs {
 
   // Typed accessors, named as the keys are.
   static var lockedTabs: Bool { bool(.lockedTabs) }
-  static var lockedGroup: String { store.string(forKey: Pref.lockedGroup.rawValue) ?? "CoreCore" }
+  static var lockedGroup: String { store.string(forKey: Pref.lockedGroup.rawValue) ?? "Locked" }
   static var newTabsAtTop: Bool { bool(.newTabsAtTop) }
   static var peek: Bool { bool(.peek) }
   static var miniIdleHours: Int { store.object(forKey: Pref.miniIdleHours.rawValue) as? Int ?? 12 }

@@ -1,6 +1,7 @@
 ---
 title: Monochrome
 date: 2026-11
+status: released
 category: product
 tags: [macos, browser-extension]
 url: https://github.com/arfct/monochrome
@@ -14,7 +15,7 @@ media:
     caption: The profile display, which names each Chrome profile by an initial on a color derived from its name
     alt: A small glass panel with three lettered circles labelled Work, Personal and Geist, the middle one marked
 credits: [ericmigi, alcor]
-unconfirmed: [date, credits]
+unconfirmed: [date, credits, status]
 ---
 
 Chrome gives an extension no Tab key, no event when Control is released and no way to draw over a window, so Monochrome comes in two parts. An extension keeps track of locked tabs, tab order and recent use, while a Mac app reads the keys through an event tap and draws its panels over Chrome. Together they make Google Chrome on a Mac keep tabs the way the Arc browser did.

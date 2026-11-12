@@ -188,6 +188,37 @@ console.log('new tab dropped into the locked group is taken out: ok');
 }
 console.log('locked group: CoreCore renamed to Locked: ok');
 
+// ⌘W on a pinned tab, through the app (sleepFront): the window goes to the tab used before it, and the
+// pinned tab is discarded (Chrome may give it a new id), stays locked at its URL, leaves the recent
+// order and is not reopened as if closed; a tab no longer pinned closes instead.
+{
+  const before = await open('/sleep/before');
+  const pinned = await open('/sleep/pinned', true);
+  await go(pinned, '/sleep/pinned-later');
+  await sw.evaluate(id => chrome.tabs.update(id, { active: true }), pinned);
+  await settle();
+  const slept = await sw.evaluate(() => sleepFront());
+  await settle();
+  const state = await sw.evaluate(async ([b, s, base]) => {
+    const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const t = await chrome.tabs.get(s);
+    const { pins = {} } = await chrome.storage.session.get('pins');
+    const copies = (await chrome.tabs.query({})).filter(x => (x.url || x.pendingUrl).startsWith(`${base}/sleep/pinned`)).length;
+    return { active: active.id === b, discarded: t.discarded, pinned: t.pinned, inRecent: mruList().includes(s), locked: lockedIds.has(s), lockedUrl: pins[s], copies };
+  }, [before, slept, base]);
+  assert.deepEqual(state, { active: true, discarded: true, pinned: true, inRecent: false, locked: true, lockedUrl: `${base}/sleep/pinned`, copies: 1 });
+  await sw.evaluate(id => chrome.tabs.update(id, { active: true }), slept);
+  await settle();
+  assert.equal(await sw.evaluate(id => mruList()[0] === id, slept), true);
+  await sw.evaluate(id => chrome.tabs.update(id, { pinned: false }), slept);
+  await settle();
+  await sw.evaluate(() => sleepFront());
+  await settle();
+  assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id).catch(() => null)) === null, slept), true);
+  await close(before);
+}
+console.log('⌘W on a pinned tab: sleeps it, goes back, leaves the recent order: ok');
+
 // A link opened in a new tab from a normal tab lands right after that tab, not at the top.
 const n1Page = await pageFor(`${base}/n1`);
 await n1Page.bringToFront();

@@ -10,6 +10,9 @@
 
 const PLAYER_MIN_SIDEBAR = 150; // narrower than this, the sidebar is collapsed (⌘S): no player
 const music = new Map(); // tabId -> { title, artist, artwork }
+chrome.tabs.onReplaced.addListener((added, removed) => {
+  if (music.has(removed)) { music.set(added, music.get(removed)); music.delete(removed); }
+});
 let playerSent = '', playerTab = null, lastPlayed = null, playerClosed = null;
 
 chrome.runtime.onMessage.addListener((msg, sender) => {

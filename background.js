@@ -307,6 +307,46 @@ async function closeTabs() {
   await chrome.tabs.remove(tabs.map(t => t.id));
 }
 
+// ⌘W on a pinned tab, from the app (Chrome asks before it closes a pinned tab): the window goes to the
+// tab used before it, and the pinned tab sleeps (is discarded) and leaves the recent-tab order until it
+// is used again. If the front tab is no longer pinned by the time this runs, it closes, as ⌘W would.
+function sleepFront() {
+  return run(async () => {
+    await endWalk();
+    const front = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
+    const [tab] = front ? await chrome.tabs.query({ active: true, windowId: front.id }) : [];
+    if (!tab) return;
+    if (!tab.pinned) return chrome.tabs.remove(tab.id);
+    const others = (await chrome.tabs.query({ windowId: front.id })).filter(t => t.id !== tab.id);
+    const next = mruList(front.id).find(id => id !== tab.id && others.some(t => t.id === id)) ?? others[0]?.id;
+    if (next === undefined) await chrome.tabs.create({ windowId: front.id, active: true });
+    else await chrome.tabs.update(next, { active: true });
+    mru = mru.filter(id => id !== tab.id);
+    chrome.storage.session.set({ mru });
+    helperMruSoon();
+    // A tab Chrome cannot discard (playing audio, say) stays awake. One it discards can come back under
+    // a new id (onReplaced below); the id it ends up with is returned.
+    const slept = await chrome.tabs.discard(tab.id).catch(() => null);
+    return slept?.id ?? tab.id;
+  });
+}
+
+// A discarded tab can come back under a new id. Everything kept by tab id moves to it: a slept locked
+// tab stays locked at its locked URL, and one out of the recent order stays out. In run(), so it orders
+// with sync().
+chrome.tabs.onReplaced.addListener((added, removed) => run(async () => {
+  const info = tabInfo.get(removed);
+  if (info) { tabInfo.delete(removed); tabInfo.set(added, info); }
+  if (lockedIds.delete(removed)) lockedIds.add(added);
+  if (mru.includes(removed)) {
+    mru = mru.map(id => id === removed ? added : id);
+    chrome.storage.session.set({ mru });
+  }
+  const { pins = {}, where = {} } = await chrome.storage.session.get(['pins', 'where']);
+  for (const byId of [pins, where]) if (removed in byId) { byId[added] = byId[removed]; delete byId[removed]; }
+  await chrome.storage.session.set({ pins, where });
+}));
+
 // Recent tabs: ⌃Tab walks through the current window's tabs, most recently used first, for as
 // long as Control is held; letting go of Control ends the walk, so the next ⌃Tab goes back to the tab
 // you came from. Chrome won't give extensions the Tab key or tell them when Control is released, so

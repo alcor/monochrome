@@ -10,7 +10,9 @@
 // Accessibility (Safari's vertical tabs are new in 27.3), so the width does not gate the player there.
 // ponytail: a side panel open on the right also counts as sidebar, so the player gets too wide.
 
-const PLAYER_MIN_SIDEBAR = 150; // narrower than this, the sidebar is collapsed (⌘S): no player
+// Narrower than this there is no sidebar to sit on (hidden with ⌘S): no player. A sidebar collapsed to
+// its icon strip is wider, and the app draws the compact player there (Player.compactBelow).
+const PLAYER_MIN_STRIP = 40;
 const music = new Map(); // tabId -> { title, artist, artwork }
 let playerSent = '', playerTab = null, lastPlayed = null, playerClosed = null;
 
@@ -44,7 +46,7 @@ async function playerState() {
   const sidebar = win && active?.width ? win.width - active.width : 0;
   if (active?.id === id) playerClosed = null; // back on the music tab: × is undone for when you leave
   return {
-    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && (SAFARI || sidebar >= PLAYER_MIN_SIDEBAR),
+    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && (SAFARI || sidebar >= PLAYER_MIN_STRIP),
     title, artist, artwork, playing: playerTab.playing, sidebar, muted, favicon: await favicon(tab?.url),
     window: win && { left: win.left, top: win.top, width: win.width, height: win.height },
   };

@@ -505,12 +505,14 @@ await sw.evaluate(() => playerAction({ action: 'nexttrack' }));
 await songPage.waitForFunction(() => document.title === 'next', null, { timeout: 3000 });
 // Shows while you're on another tab with the sidebar open; × hides it until you've been back on the
 // music tab. (Headless Chromium has no sidebar and won't move focus, so the focused window is faked.)
-const onTab = id => sw.evaluate(async id => {
+const onTab = (id, page = 950) => sw.evaluate(async ([id, page]) => {
   chrome.windows.getLastFocused = async () => ({ type: 'normal', state: 'normal', left: 0, top: 0, width: 1200, height: 800,
-    tabs: [{ id, active: true, width: 950 }] });
+    tabs: [{ id, active: true, width: page }] });
   return (await playerState()).show;
-}, id);
+}, [id, page]);
 assert.equal(await onTab(-1), true);
+assert.equal(await onTab(-1, 1144), true); // a sidebar collapsed to its 56-point strip: the compact player
+assert.equal(await onTab(-1, 1190), false); // no sidebar to sit on
 await sw.evaluate(() => playerAction({ action: 'close' }));
 assert.equal(await onTab(-1), false);
 assert.equal(await onTab(song), false); // on the music tab: never shown

@@ -9,6 +9,10 @@
 // panel sits on the frontmost on-screen Chrome window with the same size (so it follows while you drag)
 // or the same corner (while you resize).
 //
+// A sidebar collapsed to its icon strip (narrower than `compactBelow`) gets the compact player instead: one
+// card with the artwork, which goes to the tab, over play/pause; previous, next, mute and Hide Player are
+// on its right-click menu.
+//
 // On Safari the sidebar is found over Accessibility instead (SafariSidebar in Safari.swift): Safari's
 // vertical tabs arrive in 27.3, and their AX shape is unmeasured. With an older Safari, or no tab list
 // found in the window, the panel stays hidden. Safari cannot mute a tab, so there is no speaker there.
@@ -62,9 +66,14 @@ final class Player: NSObject, NSMenuDelegate {
   // The track card (56 tall, 40-point artwork) sits `gap` above the 44-point bar, both the sidebar's
   // width less `inset` each side. `margin` is room around both for their shadows.
   static let bar: CGFloat = 44, track: CGFloat = 56, gap: CGFloat = 8, inset: CGFloat = 8, margin: CGFloat = 10
+  // The compact player: on a sidebar narrower than this, a card with 28-point artwork over play/pause.
+  static let compactBelow: CGFloat = 150, compactInset: CGFloat = 6, compactHeight: CGFloat = 76
   var onAction: (String) -> Void = { _ in }
   let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
   let barView = Card(radius: 12)
+  let compactCard = Card(radius: 10)
+  let compactArt = NSImageView()
+  var compactPlay: PlayerButton!
   let trackCard = Card(radius: 12)
   let art = NSImageView()
   let title = NSTextField(labelWithString: "")
@@ -85,7 +94,7 @@ final class Player: NSObject, NSMenuDelegate {
     let content = NSView()
     panel.contentView = content
     let menu = NSMenu()
-    menu.addItem(withTitle: "Hide Player", action: #selector(hidePlayer), keyEquivalent: "").target = self
+    menu.delegate = self
     content.menu = menu
 
     art.imageScaling = .scaleProportionallyUpOrDown
@@ -116,7 +125,32 @@ final class Player: NSObject, NSMenuDelegate {
     trackCard.addSubview(trackClick)
 
     for view in [art, title, artist, icon, controls, iconClick, trackClick] as [NSView] { view.translatesAutoresizingMaskIntoConstraints = false }
-    for view in [trackCard, barView] { content.addSubview(view) }
+    for view in [trackCard, barView, compactCard] { content.addSubview(view) }
+
+    compactPlay = button("pause.fill", "playpause")
+    compactArt.imageScaling = .scaleProportionallyUpOrDown
+    compactArt.wantsLayer = true
+    compactArt.layer?.cornerRadius = 6
+    compactArt.layer?.cornerCurve = .continuous
+    compactArt.layer?.masksToBounds = true
+    let compactClick = ClickArea()
+    compactClick.onClick = iconClick.onClick
+    for view in [compactArt, compactClick, compactPlay] as [NSView] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      compactCard.addSubview(view)
+    }
+    NSLayoutConstraint.activate([
+      compactArt.centerXAnchor.constraint(equalTo: compactCard.centerXAnchor),
+      compactArt.topAnchor.constraint(equalTo: compactCard.topAnchor, constant: 8),
+      compactArt.widthAnchor.constraint(equalToConstant: 28),
+      compactArt.heightAnchor.constraint(equalToConstant: 28),
+      compactClick.leadingAnchor.constraint(equalTo: compactCard.leadingAnchor),
+      compactClick.trailingAnchor.constraint(equalTo: compactCard.trailingAnchor),
+      compactClick.topAnchor.constraint(equalTo: compactCard.topAnchor),
+      compactClick.bottomAnchor.constraint(equalTo: compactArt.bottomAnchor, constant: 4),
+      compactPlay.centerXAnchor.constraint(equalTo: compactCard.centerXAnchor),
+      compactPlay.bottomAnchor.constraint(equalTo: compactCard.bottomAnchor, constant: -10),
+    ])
     NSLayoutConstraint.activate([
       controls.leadingAnchor.constraint(equalTo: barView.leadingAnchor, constant: 14),
       controls.trailingAnchor.constraint(equalTo: barView.trailingAnchor, constant: -14),
@@ -160,12 +194,29 @@ final class Player: NSObject, NSMenuDelegate {
   }
 
   @objc func pressed(_ sender: PlayerButton) { onAction(sender.identifier!.rawValue) }
-  @objc func hidePlayer() { onAction("close") }
+  @objc func menuAction(_ item: NSMenuItem) { onAction(item.representedObject as? String ?? "") }
+
+  // The right-click menu: the compact player's missing buttons first, then Hide Player.
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    menu.removeAllItems()
+    var items: [(String, String)] = []
+    if compactCard.isHidden == false {
+      items = [("Previous", "previoustrack"), ("Next", "nexttrack")]
+      if let muted = state?.muted { items.append((muted ? "Unmute" : "Mute", "mute")) }
+    }
+    for (title, action) in items + [("Hide Player", "close")] {
+      if action == "close" && !items.isEmpty { menu.addItem(.separator()) }
+      let item = menu.addItem(withTitle: title, action: #selector(menuAction), keyEquivalent: "")
+      item.target = self
+      item.representedObject = action
+    }
+  }
 
   func apply(_ s: PlayerState?) {
     state = s
     guard let s else { return layout() }
     set(playButton, s.playing == true ? "pause.fill" : "play.fill")
+    set(compactPlay, s.playing == true ? "pause.fill" : "play.fill")
     set(muteButton, s.muted == true ? "speaker.slash.fill" : "speaker.wave.3.fill")
     muteButton.isHidden = s.muted == nil
     title.stringValue = s.title ?? ""
@@ -177,11 +228,12 @@ final class Player: NSObject, NSMenuDelegate {
     if s.artwork != artworkURL {
       artworkURL = s.artwork
       art.image = nil
+      compactArt.image = nil
       // Only web and inline images: the page picks this address, and this app isn't held to the page's limits.
       if let url = s.artwork.flatMap(URL.init(string:)), ["https", "data"].contains(url.scheme) {
         URLSession.shared.dataTask(with: url) { data, _, _ in
           DispatchQueue.main.async {
-            if self.artworkURL == s.artwork, let data { self.art.image = NSImage(data: data) }
+            if self.artworkURL == s.artwork, let data { self.art.image = NSImage(data: data); self.compactArt.image = self.art.image }
           }
         }.resume()
       }
@@ -222,13 +274,20 @@ final class Player: NSObject, NSMenuDelegate {
     }
     // Window bounds count down from the top of the main screen; AppKit counts up from its bottom. The
     // panel reaches `margin` past the cards on every side, for their shadows.
-    let width = column.width - 2 * Self.inset
-    let height = Self.bar + Self.gap + Self.track
+    let compact = column.width < Self.compactBelow
+    let inset = compact ? Self.compactInset : Self.inset
+    let width = column.width - 2 * inset
+    let height = compact ? Self.compactHeight : Self.bar + Self.gap + Self.track
     let m = Self.margin
-    let rect = NSRect(x: column.minX + Self.inset - m, y: primary.frame.height - column.maxY + Self.inset - m,
+    let rect = NSRect(x: column.minX + inset - m, y: primary.frame.height - column.maxY + inset - m,
                       width: width + 2 * m, height: height + 2 * m)
     barView.frame = NSRect(x: m, y: m, width: width, height: Self.bar)
     trackCard.frame = NSRect(x: m, y: m + Self.bar + Self.gap, width: width, height: Self.track)
+    compactCard.frame = NSRect(x: m, y: m, width: width, height: height)
+    barView.isHidden = compact
+    trackCard.isHidden = compact
+    compactCard.isHidden = !compact
+    if compactArt.image == nil { compactArt.image = art.image ?? icon.image }
     if panel.frame != rect { panel.setFrame(rect, display: true) }
     if !panel.isVisible { panel.orderFrontRegardless() }
   }

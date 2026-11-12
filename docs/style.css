@@ -54,6 +54,55 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Sticky header: logo starts big, shrinks on scroll */
+header.top {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem clamp(16px, 4vw, 32px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header.top .mark {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+header.top .mark-svg {
+  width: 36px;
+  height: 36px;
+}
+
+header.top .mark span {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Hero section with big logo at top */
+.hero .mark-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.hero .mark-hero .mark-svg {
+  width: 96px;
+  height: 96px;
+}
+
+.hero .mark-hero span {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+
+
 img { display: block; max-width: 100%; height: auto; }
 a { color: inherit; }
 

@@ -1,6 +1,8 @@
 // Sidebar mini player: while a music site (music.js) has a track loaded and you're on
-// another tab, a small player with play/pause, next and previous sits over the bottom of the vertical
-// tab sidebar; clicking the track goes to its tab, and × hides it until you've been back to that tab.
+// another tab, a small player sits over the bottom of the vertical tab sidebar: the track's artwork,
+// title and artist, and under them a bar with the site's icon, previous, play/pause, next and mute.
+// Clicking the track or the icon goes to its tab.
+// Hide Player (its right-click menu) hides it until you've been back to that tab.
 // Chrome doesn't let extensions draw in its tab strip, so the player is a panel of the helper app
 // (helper/Player.swift) floating over it, told what to show over the helper's port (helper.js).
 //
@@ -8,7 +10,9 @@
 // Accessibility (Safari's vertical tabs are new in 27.3), so the width does not gate the player there.
 // ponytail: a side panel open on the right also counts as sidebar, so the player gets too wide.
 
-const PLAYER_MIN_SIDEBAR = 150; // narrower than this, the sidebar is collapsed (⌘S): no player
+// Narrower than this there is no sidebar to sit on (hidden with ⌘S): no player. A sidebar collapsed to
+// its icon strip is wider, and the app draws the compact player there (Player.compactBelow).
+const PLAYER_MIN_STRIP = 40;
 const music = new Map(); // tabId -> { title, artist, artwork }
 chrome.tabs.onReplaced.addListener((added, removed) => {
   if (music.has(removed)) { music.set(added, music.get(removed)); music.delete(removed); }
@@ -36,14 +40,17 @@ async function playerState() {
   const id = music.has(lastPlayed) ? lastPlayed : [...music.keys()].at(-1);
   if (id === undefined) return null; // the last one went while we waited
   const { title, artist, artwork } = music.get(id);
-  playerTab = { id, playing: audible?.id === id };
+  const tab = await chrome.tabs.get(id).catch(() => null);
+  // Safari reports no muted state and cannot mute a tab: there the player has no speaker button.
+  const muted = tab?.mutedInfo ? tab.mutedInfo.muted : undefined;
+  playerTab = { id, playing: audible?.id === id, muted };
   const win = await chrome.windows.getLastFocused({ populate: true }).catch(() => null);
   const active = win?.tabs.find(t => t.active);
   const sidebar = win && active?.width ? win.width - active.width : 0;
   if (active?.id === id) playerClosed = null; // back on the music tab: × is undone for when you leave
   return {
-    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && (SAFARI || sidebar >= PLAYER_MIN_SIDEBAR),
-    title, artist, artwork, playing: playerTab.playing, sidebar,
+    show: win?.type === 'normal' && win.state !== 'minimized' && active?.id !== id && playerClosed !== id && (SAFARI || sidebar >= PLAYER_MIN_STRIP),
+    title, artist, artwork, playing: playerTab.playing, sidebar, muted, favicon: await favicon(tab?.url),
     window: win && { left: win.left, top: win.top, width: win.width, height: win.height },
   };
 }
@@ -68,6 +75,7 @@ chrome.windows.onBoundsChanged?.addListener(playerUpdate); // not in Safari; the
 async function playerAction({ action }) {
   if (!playerTab) return;
   if (action === 'close') playerClosed = playerTab.id;
+  else if (action === 'mute') await chrome.tabs.update(playerTab.id, { muted: !playerTab.muted }).catch(() => {});
   else if (action === 'focus') {
     const tab = await chrome.tabs.update(playerTab.id, { active: true }).catch(() => null);
     if (tab) await chrome.windows.update(tab.windowId, { focused: true });

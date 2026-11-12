@@ -37,7 +37,7 @@ Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chrom
 
 6. **Chrome settings.** Right-click the tab bar → Show Tabs Vertically. Settings → On startup → Continue where you left off. Optionally `chrome://flags/#browser-initiated-automatic-picture-in-picture` → Enabled, for video that pops out when its tab is left.
 
-7. **Lock tabs.** Pin the tabs that should be locked, and put everyday tabs in a tab group named `CoreCore` (or the title set in Settings → Tabs → Locked group).
+7. **Lock tabs.** Pin the tabs that should be locked, and put everyday tabs in a tab group named `Locked` (or the title set in Settings → Tabs → Locked group). A group still named `CoreCore`, the default through 1.2.1, is renamed `Locked`.
 
 8. **Optional, once:** `migrate/arc-to-chrome.sh` merges Arc's last 90 days of history and its form autofill into Chrome, backing up both databases first. It quits and reopens Chrome.
 
@@ -57,7 +57,7 @@ Chrome and Safari can be used at the same time. Both browsers' extensions stay c
 
 Safari differences:
 
-- Only pinned tabs are locked. Safari gives extensions no tab groups, so there is no `CoreCore` group, the locked group title has no effect, and a route to a tab group opens a new tab in the front window instead. The Router tab does not offer "Tab group" on Safari.
+- Only pinned tabs are locked. Safari gives extensions no tab groups, so there is no `Locked` group, the locked group title has no effect, and a route to a tab group opens a new tab in the front window instead. The Router tab does not offer "Tab group" on Safari.
 - The mini browser's search box searches Google. Safari has no search API and does not tell extensions its search engine.
 - Switcher favicons come from Google's favicon service (`www.google.com/s2/favicons`) by the page's origin. Chrome uses its own favicon cache.
 - Mini browsers are popup windows, as on Chrome. Whether Safari draws them without its toolbar has not been checked.
@@ -96,7 +96,7 @@ The Safari extension target's run script copies the same files into the app exte
 | ⌥⇧N, from any app | New mini browser. Turn off in Settings → Mini Browsers | app; extension command as fallback |
 | ⌥⌘-click | Open the link in a mini browser. Turn off in Settings → Mini Browsers | app only |
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |
-| ⌘L, ⌘T | The command bar: edit the front tab's address, or open a new tab. ⌥Return does the other. Turn off in Settings → Command Bar, each key on its own | app; the browser's own when off or not connected |
+| ⌘L, ⌘T | The command bar: edit the front tab's address, or open a new tab. ⌥Return does the other. Off by default; turn on in Settings → Command Bar, each key on its own | app; the browser's own when off or not connected |
 | ⌘O, ⇧⌘O, in a mini browser | Move it into Chrome as a tab; pick the window, tab group or another profile | app; extension commands as fallback |
 | ⌥⇧R | The reader: the page's content with a summary first. Again, or Esc, goes back to the page; in a mini browser Esc closes the reader and the mini browser stays. Turn off in Settings → Command Bar; while it is on, ⌥⇧R in the browser no longer types ‰ | app; extension command as fallback |
 | Esc, on a new mini browser's search page | Close it | extension |
@@ -110,7 +110,7 @@ Hotkeys are resolved through the active keyboard layout: ⌥⇧N is the key that
 
 ## Locked tabs come back when closed
 
-A pinned tab, or a tab in the `CoreCore` group, remembers the URL it had when it was locked. Closing it reopens it in place at that URL; unpinning it or dragging it out of the group closes it for good. ⌃R resets it in place. The command "Replace pinned URL with current" makes the current page the locked URL.
+A pinned tab, or a tab in the `Locked` group, remembers the URL it had when it was locked. Closing it reopens it in place at that URL; unpinning it or dragging it out of the group closes it for good. ⌃R resets it in place. The command "Replace pinned URL with current" makes the current page the locked URL.
 
 Locked URLs survive a restart by position: tabs are matched in order within the pinned area and within each group. When Chrome restores them in another order, the URLs land on the wrong tabs, and the fix is to re-lock or replace. Closing a window with locked tabs and then quitting is the known way to shift them by one.
 
@@ -177,7 +177,7 @@ The panel is the app's (`helper/Player.swift`), because an extension cannot draw
 
 ## ⌘L and ⌘T open the command bar, in Quicksilver's style
 
-In Chrome and Safari, ⌘L and ⌘T open the app's command bar (Arc's name for it) over the front window in place of the browser's address bar: ⌘L with the front tab's address selected, ⌘T empty with the most used sites under it. It is the lower half of Quicksilver's panel (`apple/Quicksilver/Sources/CommandView.swift` in the alchemy repository), with its measurements: a 72-point capsule of clear glass with the label scrim, and 62-point rows with 48-point favicon tiles and one selection fill that slides between them (`helper/OmniboxView.swift`).
+With the two switches on in Settings → Command Bar (they are off by default), ⌘L and ⌘T in Chrome and Safari open the app's command bar (Arc's name for it) over the front window in place of the browser's address bar: ⌘L with the front tab's address selected, ⌘T empty with the most used sites under it. It is the lower half of Quicksilver's panel (`apple/Quicksilver/Sources/CommandView.swift` in the alchemy repository), with its measurements: a 72-point capsule of clear glass with the label scrim, and 62-point rows with 48-point favicon tiles and one selection fill that slides between them (`helper/OmniboxView.swift`).
 
 What it lists comes from the profile whose window is in front (`helper/Omnibox.swift`):
 

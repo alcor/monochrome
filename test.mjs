@@ -94,17 +94,17 @@ await close(c);
 assert.deepEqual(await pinnedUrls(), [`${base}/x`, `${base}/b`]);
 console.log('unpinned tab ignored: ok');
 
-// Locked tab group: tabs in "CoreCore" behave like pinned tabs. (New tabs open at the top, so g1,
+// Locked tab group: tabs in "Locked" behave like pinned tabs. (New tabs open at the top, so g1,
 // opened last, ends up first.)
 const g2 = await open('/g2');
 const g1 = await open('/g1');
 await sw.evaluate(async ids => {
   const groupId = await chrome.tabs.group({ tabIds: ids });
-  await chrome.tabGroups.update(groupId, { title: 'CoreCore', color: 'blue' });
+  await chrome.tabGroups.update(groupId, { title: 'Locked', color: 'blue' });
 }, [g1, g2]);
 await settle();
 const groupUrls = () => sw.evaluate(async () => {
-  const [g] = await chrome.tabGroups.query({ title: 'CoreCore' });
+  const [g] = await chrome.tabGroups.query({ title: 'Locked' });
   if (!g) return [];
   return (await chrome.tabs.query({ groupId: g.id })).map(t => t.pendingUrl || t.url);
 });
@@ -123,7 +123,7 @@ console.log('close command on group tab: ok');
 
 // Closing every tab in the group brings the whole group back.
 const groupIds = await sw.evaluate(async () => {
-  const [g] = await chrome.tabGroups.query({ title: 'CoreCore' });
+  const [g] = await chrome.tabGroups.query({ title: 'Locked' });
   return (await chrome.tabs.query({ groupId: g.id })).map(t => t.id);
 });
 await sw.evaluate(ids => chrome.tabs.remove(ids), groupIds);
@@ -133,7 +133,7 @@ console.log('whole group comes back: ok');
 
 // A tab dragged out of the group is a normal tab again.
 const [out] = await sw.evaluate(async () => {
-  const [g] = await chrome.tabGroups.query({ title: 'CoreCore' });
+  const [g] = await chrome.tabGroups.query({ title: 'Locked' });
   return (await chrome.tabs.query({ groupId: g.id })).map(t => t.id);
 });
 await sw.evaluate(id => chrome.tabs.ungroup(id), out);
@@ -144,12 +144,12 @@ console.log('ungrouped tab really closes: ok');
 
 // Order saved for the next launch, per slot.
 assert.deepEqual((await sw.evaluate(() => chrome.storage.local.get('order'))).order,
-  { pinned: [`${base}/x`, `${base}/b`], CoreCore: [`${base}/g2`] });
+  { pinned: [`${base}/x`, `${base}/b`], Locked: [`${base}/g2`] });
 console.log('saved order: ok');
 
-// New tabs open right under the locked tabs: pinned, then the CoreCore group.
+// New tabs open right under the locked tabs: pinned, then the Locked group.
 const lastLockedIndex = () => sw.evaluate(async () => {
-  const [g] = await chrome.tabGroups.query({ title: 'CoreCore' });
+  const [g] = await chrome.tabGroups.query({ title: 'Locked' });
   const tabs = await chrome.tabs.query({ windowId: g.windowId });
   return Math.max(...tabs.filter(t => t.pinned || t.groupId === g.id).map(t => t.index));
 });
@@ -157,9 +157,9 @@ const indexOf = id => sw.evaluate(async id => (await chrome.tabs.get(id)).index,
 const n1 = await open('/n1');
 await settle();
 assert.equal(await indexOf(n1), (await lastLockedIndex()) + 1);
-console.log('new tab opens under CoreCore: ok');
+console.log('new tab opens under the locked group: ok');
 
-// A new tab that lands in CoreCore (a link opened from a CoreCore tab) is taken out and not locked.
+// A new tab that lands in Locked (a link opened from a Locked tab) is taken out and not locked.
 const corePage = await pageFor(`${base}/g2`);
 await corePage.bringToFront(); // Chrome records the active tab as a link's opener
 await corePage.evaluate(url => { document.body.innerHTML = `<a href="${url}">go</a>`; }, `${base}/from-core`);
@@ -169,7 +169,24 @@ const n2 = await sw.evaluate(async url => (await chrome.tabs.query({ url }))[0].
 assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id)).groupId, n2), -1);
 assert.equal(await indexOf(n2), (await lastLockedIndex()) + 1);
 assert.deepEqual(await groupUrls(), [`${base}/g2`]);
-console.log('new tab dropped into CoreCore is taken out: ok');
+console.log('new tab dropped into the locked group is taken out: ok');
+
+// A group still titled CoreCore, the default title through 1.2.1, takes the new default's title.
+{
+  const renamed = await sw.evaluate(async url => {
+    const t = await chrome.tabs.create({ url });
+    const groupId = await chrome.tabs.group({ tabIds: t.id });
+    await chrome.tabGroups.update(groupId, { title: 'CoreCore' });
+    const moved = await renameOldLockedGroup('Locked');
+    const kept = await renameOldLockedGroup('Work'); // another title in force: nothing to do
+    const title = (await chrome.tabGroups.get(groupId)).title;
+    await chrome.tabs.remove(t.id);
+    return { moved, kept, title };
+  }, `${base}/old-group`);
+  assert.deepEqual(renamed, { moved: true, kept: false, title: 'Locked' });
+  await settle();
+}
+console.log('locked group: CoreCore renamed to Locked: ok');
 
 // A link opened in a new tab from a normal tab lands right after that tab, not at the top.
 const n1Page = await pageFor(`${base}/n1`);
@@ -275,7 +292,7 @@ await sleep(300);
 assert.deepEqual(await miniBrowsers(), []);
 assert.equal(await sw.evaluate(async id => (await chrome.windows.get((await chrome.tabs.get(id)).windowId)).type, miniTab), 'normal');
 assert.equal(await indexOf(miniTab), (await lastLockedIndex()) + 1);
-console.log('mini browser: open in Chrome, lands under CoreCore: ok');
+console.log('mini browser: open in Chrome, lands under the locked group: ok');
 
 // ⌥⌘-click: the helper's tap turns it into a ⌘-click and says a mini browser is coming; the background
 // tab Chrome then makes becomes one.
@@ -621,7 +638,7 @@ if (fs.existsSync(helperBinary)) {
   await setPrefs({});
   console.log('prefs: lockedTabs off: ok');
 
-  // lockedGroup "Work": a tab in a Work group comes back and one in CoreCore does not. Empty: neither.
+  // lockedGroup "Work": a tab in a Work group comes back and one in Locked does not. Empty: neither.
   const inGroupTitled = (id, title) => sw.evaluate(async ([id, title]) => {
     const [g] = await chrome.tabGroups.query({ title });
     if (g) return chrome.tabs.group({ groupId: g.id, tabIds: id });
@@ -631,7 +648,7 @@ if (fs.existsSync(helperBinary)) {
   const w1 = await open('/work-1');
   await inGroupTitled(w1, 'Work');
   const c1 = await open('/core-1');
-  await inGroupTitled(c1, 'CoreCore');
+  await inGroupTitled(c1, 'Locked');
   await settle();
   await close(w1); await close(c1);
   assert.equal((await byUrl('/work-1')).length, 1);

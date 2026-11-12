@@ -39,8 +39,8 @@ final class GeneralModel: ObservableObject {
     launchAtLogin = SMAppService.mainApp.status == .enabled
     accessibility = AXIsProcessTrusted()
     isDefaultBrowser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) == Bundle.main.bundleURL
-    browserWarning = browser == .chrome && Chrome.runningWithFlags() == false
-      ? "Chrome is running without its launch flags. Quit it (⌘Q) and open it from the Dock." : nil
+    browserWarning = browser.isChromium && Chrome.runningWithFlags() == false
+      ? "\(runningChromiumName) is running without its launch flags. Quit it (⌘Q) and open it from the Dock." : nil
     // Safari's history is behind Full Disk Access: readable or not.
     fullDiskAccess = SafariHistory.databaseURL(profile: "").flatMap { try? FileHandle(forReadingFrom: $0) }.map { try? $0.close(); return true } ?? false
     // The Dock's preferences are read through `defaults`, so not on every refresh.
@@ -80,10 +80,20 @@ final class GeneralModel: ObservableObject {
     if browser == .safari { Safari.showExtensionSettings() } else { InstallExtensionPanel.shared.show() }
   }
 
+  // "Chrome" or "Edge": the one running, else the Browser setting's.
+  var runningChromiumName: String { Chrome.variant(Chrome.runningChrome?.bundleIdentifier)?.family.name ?? browser.chromium.name }
+
+  // The Browser picker's choices: Edge only once it is installed, or already chosen.
+  var browserChoices: [Browser] {
+    let edge = browser == .edge || Chrome.chromiumVariants.contains { $0.family == .edge && NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleId) != nil }
+    return Browser.allCases.filter { $0 != .edge || edge || demo }
+  }
+
   func relaunchChrome() {
     let alert = NSAlert()
-    alert.messageText = "Relaunch Chrome?"
-    alert.informativeText = "Chrome quits and opens again with its launch flags. Its windows come back if Chrome's Settings → On startup is set to Continue where you left off."
+    let name = runningChromiumName
+    alert.messageText = "Relaunch \(name)?"
+    alert.informativeText = "\(name) quits and opens again with its launch flags. Its windows come back if \(name)'s Settings → On startup is set to Continue where you left off."
     alert.addButton(withTitle: "Relaunch")
     alert.addButton(withTitle: "Cancel")
     guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -101,7 +111,7 @@ final class GeneralModel: ObservableObject {
     DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.dockReadAt = .distantPast; self?.refresh() }
   }
 
-  func openExtensionShortcuts() { Chrome.open([URL(string: "chrome://extensions/shortcuts")!], activate: true) }
+  func openExtensionShortcuts() { Chrome.open([URL(string: "\(Browser.active.chromium.scheme)://extensions/shortcuts")!], activate: true) }
 
   static func openPrivacyPane(_ anchor: String) {
     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!)
@@ -197,19 +207,20 @@ struct BrowserSettings: View {
   @ObservedObject private var prefs = PrefsObserver.shared
 
   var body: some View {
+    let name = model.browser.chromium.name
     Columns {
       Section("Browser") {
         SettingRow("Browser", detail: "Where links from other apps open", symbol: "globe") {
           Picker("Browser", selection: Binding(get: { model.browser }, set: model.setBrowser)) {
-            ForEach(Browser.allCases) { Text($0.name).tag($0) }
+            ForEach(model.browserChoices) { Text($0.name).tag($0) }
           }
           .labelsHidden().fixedSize()
         }
-        SettingToggle("Open Chrome with Monochrome", detail: "So Chrome starts at login with its launch flags", symbol: "arrow.up.forward.app",
+        SettingToggle("Open \(name) with Monochrome", detail: "So \(name) starts at login with its launch flags", symbol: "arrow.up.forward.app",
                       isOn: Prefs.binding(.openBrowserAtLaunch))
-        SettingToggle("Address bar opens history matches", detail: "A launch flag, for Chrome started from the Dock tile", symbol: "clock.arrow.circlepath",
+        SettingToggle("Address bar opens history matches", detail: "A launch flag, for \(name) started from the Dock tile", symbol: "clock.arrow.circlepath",
                       isOn: Prefs.binding(.launchFlags))
-        StatusRow(title: "Dock tile", detail: "Takes Chrome's tile and starts Chrome with the flags", symbol: "dock.rectangle",
+        StatusRow(title: "Dock tile", detail: "Takes \(name)'s tile and starts \(name) with the flags", symbol: "dock.rectangle",
                   ok: model.dockTile, okText: "In the Dock", button: "Add to Dock", action: model.addDockTile)
       }
     } right: {
@@ -218,13 +229,13 @@ struct BrowserSettings: View {
                    symbol: "puzzlepiece.extension") {
           Button(model.browser == .safari ? "Extension Settings…" : "Install Extension…", action: model.installExtension)
         }
-        if model.browser == .chrome {
-          SettingRow("Extension shortcuts", detail: "Chrome's own page for the extension's keys", symbol: "keyboard") {
+        if model.browser.isChromium {
+          SettingRow("Extension shortcuts", detail: "\(name)'s own page for the extension's keys", symbol: "keyboard") {
             Button("Open…", action: model.openExtensionShortcuts)
           }
         }
         if model.browserWarning != nil {
-          SettingRow("Relaunch Chrome", detail: "Chrome is running without Monochrome's flags", symbol: "arrow.clockwise") {
+          SettingRow("Relaunch \(model.runningChromiumName)", detail: "\(model.runningChromiumName) is running without Monochrome's flags", symbol: "arrow.clockwise") {
             Button("Relaunch…", action: model.relaunchChrome)
           }
         }

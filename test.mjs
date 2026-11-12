@@ -635,6 +635,37 @@ if (fs.existsSync(helperBinary)) {
   console.log('safari: profile titles, vertical tab gate, sidebar pick, profile envelope, App Shortcuts: ok');
 } else console.log('safari: app readers: skipped (run make build)');
 
+// The app's Chromium readers (helper/Chrome.swift): window titles split into tab and profile for Chrome
+// and Edge (Edge's zero-width space after "Microsoft", and the profile on either side of its name), the
+// variants with their host folders, and the App Shortcuts per family (Edge has no sidebar pair).
+if (fs.existsSync(helperBinary)) {
+  const check = async request => {
+    const p = spawn(helperBinary, ['--check-chrome', JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    const code = await new Promise(r => p.on('exit', r));
+    return { code, result: out ? JSON.parse(out).result : undefined };
+  };
+  const split = async (title, profiles = ['Work', 'Personal']) => (await check({ op: 'split', title, profiles })).result;
+  assert.deepEqual(await split('Inbox - Google Chrome - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Google Chrome'), ['Inbox', '']);
+  assert.deepEqual(await split('Notes - Personal - Google Chrome'), ['Notes - Personal', '']); // Chrome's order is fixed
+  assert.deepEqual(await split('Inbox - Google Chrome Beta - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Microsoft\u200B Edge - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Work - Microsoft\u200B Edge'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Microsoft Edge'), ['Inbox', '']);
+  assert.deepEqual(await split('Inbox - Microsoft\u200B Edge Beta - Personal'), ['Inbox', 'Personal']);
+  assert.deepEqual(await split('Inbox - Work'), ['Inbox', 'Work']); // a popup
+  const variants = (await check({ op: 'variants' })).result;
+  const edge = variants.filter(v => v.family === 'edge');
+  assert.deepEqual(edge.map(v => v.bundleId), ['com.microsoft.edgemac', 'com.microsoft.edgemac.Beta', 'com.microsoft.edgemac.Dev', 'com.microsoft.edgemac.Canary']);
+  assert.deepEqual(edge.map(v => v.hostFolder), ['Microsoft Edge', 'Microsoft Edge Beta', 'Microsoft Edge Dev', 'Microsoft Edge Canary']);
+  assert.equal(variants[0].bundleId, 'com.google.Chrome');
+  assert.deepEqual(Object.keys((await check({ op: 'shortcuts', family: 'chrome' })).result).sort(), ['Collapse Vertical Tabs', 'Save Page As…', 'Select Next Tab', 'Select Previous Tab']);
+  assert.deepEqual(Object.keys((await check({ op: 'shortcuts', family: 'edge' })).result).sort(), ['Select Next Tab', 'Select Previous Tab']);
+  console.log('chromium: Chrome and Edge window titles, Edge variants and host folders, App Shortcuts per family: ok');
+} else console.log('chromium: app readers: skipped (run make build)');
+
 // Settings from the app (docs/settings.md): { prefs } over the port, the whole set, kept in
 // chrome.storage.local; without the app, PREF_DEFAULTS, which is how the extension behaved before.
 {

@@ -115,7 +115,7 @@ Eight tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
-| Browser | P Chrome, Safari | Chrome | `browser` | `Browser.current` | Where links from other apps open |
+| Browser | P Chrome, Edge (once installed), Safari | Chrome | `browser` | `Browser.current` | Where links from other apps open |
 | Open Chrome with Monochrome | T | on | `openBrowserAtLaunch` | `App.applicationDidFinishLaunching` | So Chrome starts at login with its launch flags |
 | Address bar opens the matching history page | T | on | `launchFlags` | `Chrome.open`, `relaunchWithFlags`, `runningWithFlags`, `warnIfStartedWithoutFlags` | A launch flag, for Chrome started from the Dock tile |
 | Dock tile | S Add to Dock | placed once | `dockTileFor` | `Install.dockHasTile`, `placeDockTile` | Takes Chrome's tile and starts Chrome with the flags |

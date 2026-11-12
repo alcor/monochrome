@@ -275,7 +275,7 @@ chrome.tabs.onCreated.addListener(created => {
     }
     if ((await chrome.windows.get(tab.windowId)).type !== 'normal') return;
     // Chrome records an opener for ⌘T too; only a link (not the New Tab page) stays by its opener.
-    const newTabPage = /^chrome:\/\/new-?tab/.test(created.pendingUrl || created.url);
+    const newTabPage = /^(chrome|edge):\/\/new-?tab/.test(created.pendingUrl || created.url);
     if (tab.openerTabId && !newTabPage && !(await isLocked(tab.openerTabId))) return;
     if (tab.openerTabId && !newTabPage && tab.active && PREFS.peek) { // queues its own run(): don't wait for it inside this one
       openPeekBrowser({ tabId: tab.id }, { id: tab.openerTabId, windowId: tab.windowId }).catch(console.error);

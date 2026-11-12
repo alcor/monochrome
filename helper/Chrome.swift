@@ -16,10 +16,26 @@ import UserNotifications
 // `current` is the setting on the settings window's Browser tab: the browser links from other apps open
 // in, and the one started at login. The launch flags and the Dock tile stay Chrome's. Kept in the app's
 // defaults; Chrome until changed.
+//
+// Microsoft Edge is Chromium too: its variants sit beside Chrome's in Chrome.chromiumVariants, its
+// extension is the same folder and its windows and connections are handled the same way. `.edge` as
+// the setting makes Edge the one links open in, the one started at login and the one the Dock tile and
+// the launch flags are for; `isChromium` is what most of the app asks.
 enum Browser: String, CaseIterable, Identifiable {
-  case chrome, safari
+  case chrome, edge, safari
   var id: String { rawValue }
-  var name: String { self == .chrome ? "Chrome" : "Safari" }
+  var name: String {
+    switch self {
+    case .chrome: "Chrome"
+    case .edge: "Edge"
+    case .safari: "Safari"
+    }
+  }
+  var isChromium: Bool { self != .safari }
+  // The scheme of the browser's own pages: chrome://extensions, edge://extensions.
+  var scheme: String { self == .edge ? "edge" : "chrome" }
+  // The Chromium the Chrome-only settings rows are about: this one, or Chrome while Safari is chosen.
+  var chromium: Browser { isChromium ? self : .chrome }
 
   static var current: Browser {
     get { Prefs.store.string(forKey: "browser").flatMap(Browser.init(rawValue:)) ?? .chrome }
@@ -37,17 +53,30 @@ enum Chrome {
   // Every Chrome the extension runs in, each with its own profiles, extension copy and native
   // messaging host folder (Install.swift registers with each one that has run). Their windows and
   // connections are handled together; stable comes first and is what the Dock icon and the login
-  // item start when none is running. `name` is what their window titles carry.
-  struct Variant { let bundleId: String, name: String }
-  static let chromeVariants = [
-    Variant(bundleId: "com.google.Chrome", name: "Google Chrome"),
-    Variant(bundleId: "com.google.Chrome.beta", name: "Google Chrome Beta"),
-    Variant(bundleId: "com.google.Chrome.dev", name: "Google Chrome Dev"),
-    Variant(bundleId: "com.google.Chrome.canary", name: "Google Chrome Canary"),
-    Variant(bundleId: "org.chromium.Chromium", name: "Chromium"),
+  // item start when none is running. `name` is what their window titles carry; `hostFolder` is where,
+  // under Application Support, that browser reads native messaging host manifests.
+  struct Variant { let bundleId: String, name: String, family: Browser, hostFolder: String }
+  static let chromiumVariants = [
+    Variant(bundleId: "com.google.Chrome", name: "Google Chrome", family: .chrome, hostFolder: "Google/Chrome"),
+    Variant(bundleId: "com.google.Chrome.beta", name: "Google Chrome Beta", family: .chrome, hostFolder: "Google/Chrome Beta"),
+    Variant(bundleId: "com.google.Chrome.dev", name: "Google Chrome Dev", family: .chrome, hostFolder: "Google/Chrome Dev"),
+    Variant(bundleId: "com.google.Chrome.canary", name: "Google Chrome Canary", family: .chrome, hostFolder: "Google/Chrome Canary"),
+    Variant(bundleId: "org.chromium.Chromium", name: "Chromium", family: .chrome, hostFolder: "Chromium"),
+    // Edge's window titles put a zero-width space after "Microsoft"; split(title:) drops it first.
+    Variant(bundleId: "com.microsoft.edgemac", name: "Microsoft Edge", family: .edge, hostFolder: "Microsoft Edge"),
+    Variant(bundleId: "com.microsoft.edgemac.Beta", name: "Microsoft Edge Beta", family: .edge, hostFolder: "Microsoft Edge Beta"),
+    Variant(bundleId: "com.microsoft.edgemac.Dev", name: "Microsoft Edge Dev", family: .edge, hostFolder: "Microsoft Edge Dev"),
+    Variant(bundleId: "com.microsoft.edgemac.Canary", name: "Microsoft Edge Canary", family: .edge, hostFolder: "Microsoft Edge Canary"),
   ]
-  static let safari = Variant(bundleId: Safari.bundleId, name: "Safari")
-  // The browsers in play: every Chrome, or Safari alone.
+  static let safari = Variant(bundleId: Safari.bundleId, name: "Safari", family: .safari, hostFolder: "")
+  // Every Chromium, the chosen one's family first, so what starts when none is running is the
+  // Browser setting's stable (Edge when Edge is chosen), and the others in their order after it.
+  static var chromeVariants: [Variant] {
+    let first = Browser.current.chromium
+    return chromiumVariants.filter { $0.family == first } + chromiumVariants.filter { $0.family != first }
+  }
+  static func variant(_ bundleId: String?) -> Variant? { chromiumVariants.first { $0.bundleId == bundleId } ?? (bundleId == Safari.bundleId ? safari : nil) }
+  // The browsers in play: every Chromium, or Safari alone.
   static var variants: [Variant] { Browser.active == .safari ? [safari] : chromeVariants }
   static var bundleIds: [String] { variants.map(\.bundleId) }
   static let features = ["OmniboxForceAllowedToBeDefault"]
@@ -98,7 +127,7 @@ enum Chrome {
     frontmost = bundleId
     let before = frontBrowser ?? Browser.current
     if bundleId == Safari.bundleId { frontBrowser = .safari }
-    else if chromeVariants.contains(where: { $0.bundleId == bundleId }) { frontBrowser = .chrome }
+    else if let variant = chromiumVariants.first(where: { $0.bundleId == bundleId }) { frontBrowser = variant.family }
     else if bundleId != Bundle.main.bundleIdentifier { frontBrowser = nil }
     if notify && frontBrowser ?? Browser.current != before { onBrowserChange() }
   }
@@ -110,7 +139,7 @@ enum Chrome {
     guard let appURL = running?.bundleURL ?? bundleIds.lazy.compactMap({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }).first else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = activate
-    if running == nil && Browser.active == .chrome { configuration.arguments = launchArguments }
+    if running == nil && Browser.active.isChromium { configuration.arguments = launchArguments }
     if urls.isEmpty {
       NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     } else {
@@ -141,14 +170,15 @@ enum Chrome {
   // instead of silently doing nothing.
   static var warnedPid: pid_t = 0
   static func warnIfStartedWithoutFlags() {
-    guard Browser.current == .chrome, Prefs.launchFlags, let running = runningChrome, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
+    guard Browser.current.isChromium, Prefs.launchFlags, let running = runningChrome, running.processIdentifier != warnedPid, runningWithFlags() == false else { return }
     warnedPid = running.processIdentifier
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in
       guard granted else { return }
       let content = UNMutableNotificationContent()
-      content.title = "Chrome is running without its launch flags"
-      content.body = "Quit Chrome (⌘Q) and open it from the Dock to turn the address-bar fix back on."
+      let name = variant(running.bundleIdentifier)?.family.name ?? "Chrome"
+      content.title = "\(name) is running without its launch flags"
+      content.body = "Quit \(name) (⌘Q) and open it from the Dock to turn the address-bar fix back on."
       center.add(UNNotificationRequest(identifier: "launch-flags", content: content, trigger: nil))
     }
   }
@@ -224,19 +254,28 @@ enum Chrome {
 
   // A window's title is "tab - Google Chrome - profile" for a normal window (Beta, Dev, Canary and
   // Chromium put their own names there) and "tab - profile" for a popup, the profile part only when
-  // that Chrome has more than one profile; the names come from the Profiles menus.
-  static func split(title full: String) -> (tab: String, profile: String) {
-    // Longest name first, so " - Google Chrome" is not found inside " - Google Chrome Beta".
-    for name in variants.map(\.name).sorted(by: { $0.count > $1.count }) {
-      guard let mark = full.range(of: " - " + name, options: .backwards) else { continue }
-      let rest = full[mark.upperBound...]
-      return (String(full[..<mark.lowerBound]), rest.hasPrefix(" - ") ? String(rest.dropFirst(3)) : "")
-    }
+  // that Chrome has more than one profile; the names come from the Profiles menus. Edge writes
+  // "Microsoft\u{200B} Edge" (a zero-width space after Microsoft), and on Windows puts the profile
+  // before its name ("tab - profile - Microsoft Edge"); both orders are read here, since the Mac order
+  // has not been checked.
+  static func split(title raw: String, profiles: [String]? = nil) -> (tab: String, profile: String) {
+    let full = raw.replacingOccurrences(of: "\u{200B}", with: "")
     // Safari puts no profile in its titles, so a page title ending in a profile's name is just a title.
-    for name in Browser.active == .chrome ? Profiles.names() : [] where full.hasSuffix(" - " + name) {
-      return (String(full.dropLast(name.count + 3)), name)
+    let names = profiles ?? (Browser.active.isChromium ? Profiles.names() : [])
+    func trailingProfile(_ title: String) -> (tab: String, profile: String) {
+      for name in names.sorted(by: { $0.count > $1.count }) where title.hasSuffix(" - " + name) {
+        return (String(title.dropLast(name.count + 3)), name)
+      }
+      return (title, "")
     }
-    return (full, "")
+    // Longest name first, so " - Google Chrome" is not found inside " - Google Chrome Beta".
+    for variant in variants.sorted(by: { $0.name.count > $1.name.count }) {
+      guard let mark = full.range(of: " - " + variant.name, options: .backwards) else { continue }
+      let rest = full[mark.upperBound...], tab = String(full[..<mark.lowerBound])
+      if rest.hasPrefix(" - ") { return (tab, String(rest.dropFirst(3))) }
+      return variant.family == .edge ? trailingProfile(tab) : (tab, "")
+    }
+    return trailingProfile(full)
   }
 
   static func axTitle(_ window: AXUIElement) -> String? {
@@ -277,5 +316,35 @@ final class WindowTracker {
   private func tick() {
     let front = Chrome.isFrontmost
     onTick(front && needed() ? Chrome.windows() : [], front)
+  }
+}
+
+// --check-chrome <json>: the pure parts above on given input, printed as {"result": ...}, for test.mjs.
+//   {"op": "split", "title": "...", "profiles": [...]}  a window title split into tab and profile
+//   {"op": "variants"}                                  every Chromium: bundle id, title name, family, host folder
+//   {"op": "shortcuts", "family": "chrome"|"edge"}      the App Shortcuts that family's browsers are given
+enum ChromeCheck {
+  static func run(_ json: String?) -> Int32 {
+    guard let json, let request = JSONLine.decode(json), let op = request["op"] as? String else {
+      FileHandle.standardError.write(Data("usage: --check-chrome '{\"op\": ...}'\n".utf8))
+      return 2
+    }
+    var out: Any = NSNull()
+    switch op {
+    case "split":
+      let (tab, profile) = Chrome.split(title: request["title"] as? String ?? "", profiles: request["profiles"] as? [String] ?? [])
+      out = [tab, profile]
+    case "variants":
+      out = Chrome.chromiumVariants.map { ["bundleId": $0.bundleId, "name": $0.name, "family": $0.family.rawValue, "hostFolder": $0.hostFolder] }
+    case "shortcuts":
+      let edge = request["family"] as? String == Browser.edge.rawValue
+      out = Install.split(edge ? [:] : Install.sidebarShortcuts, Install.tabShortcuts).want
+    default:
+      FileHandle.standardError.write(Data("unknown op \(op)\n".utf8))
+      return 2
+    }
+    guard let data = try? JSONSerialization.data(withJSONObject: ["result": out], options: [.sortedKeys]) else { return 1 }
+    print(String(decoding: data, as: UTF8.self))
+    return 0
   }
 }

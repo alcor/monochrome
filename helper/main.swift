@@ -21,9 +21,10 @@
 //                   ⌘L/⌘T box's model for that browser's profile, typed into without showing it (--show: the panel shown, typed into through
 //                   its field; it takes the keyboard); the running app logs the rows (Omnibox.swift)
 //   --check-safari <json>  the Safari readers' pure parts on given input, for the tests (Safari.swift)
+//   --check-chrome <json>  the Chromium title split, variants and App Shortcuts, for the tests (Chrome.swift)
 //   --prefs [--defaults]  the `prefs` message the app sends the extension, as JSON: the current values, or
 //                   the defaults (Prefs.swift), which the tests compare with the extension's PREF_DEFAULTS
-//   --demo-settings [tab] [out.png] [dark]  the settings window on a tab (general, browser, tabs, mini,
+//   --demo-settings [tab] [out.png] [dark] [--browser=edge|safari]  the settings window on a tab (general, browser, tabs, mini,
 //                   command, player, router, or 0 to 6; Router when none) over a scratch defaults suite,
 //                   with sample rules and profiles; with out.png, drawn into that file from the view and quit
 //   --check-tldr    a reader summarize request on stdin; the model's pieces on stdout, one JSON object per line (Reader.swift)
@@ -54,6 +55,10 @@ case "--demo-settings":
   // backdrop, or drawn into a PNG.
   let app = NSApplication.shared
   Prefs.useDemoStore()
+  // --browser=edge (or safari): the Browser setting the demo starts on.
+  if let pick = CommandLine.arguments.first(where: { $0.hasPrefix("--browser=") }).flatMap({ Browser(rawValue: String($0.dropFirst(10))) }) {
+    Prefs.store.set(pick.rawValue, forKey: "browser")
+  }
   let rest = CommandLine.arguments.dropFirst(2).filter { !$0.hasPrefix("--") }
   let tab = rest.first { !$0.hasSuffix(".png") && $0 != "dark" }.flatMap(SettingsWindow.tabIndex) ?? SettingsWindow.tabIndex("router")!
   let out = rest.first { $0.hasSuffix(".png") }
@@ -82,6 +87,8 @@ case "--prefs":
   exit(0)
 case "--check-safari":
   exit(SafariCheck.run(CommandLine.arguments.dropFirst(2).first))
+case "--check-chrome":
+  exit(ChromeCheck.run(CommandLine.arguments.dropFirst(2).first))
 case "--check-tldr":
   Task.detached { exit(await ReaderCheck.run()) }
   dispatchMain()

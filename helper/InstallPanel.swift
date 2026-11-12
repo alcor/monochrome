@@ -14,9 +14,13 @@ final class InstallExtensionPanel {
   // the drag carried nothing a drop target could take.
   static let folder = URL(fileURLWithPath: Bundle.main.resourcePath! + "/extension", isDirectory: true)
   private var window: NSWindow?
+  private var builtFor: Browser?
+
+  // Chrome's or Edge's extensions page, by the browser in front or the Browser setting.
+  private var browser: Browser { Browser.active.chromium }
 
   func show() {
-    if window == nil { window = make() }
+    if window == nil || builtFor != browser { window?.orderOut(nil); window = make(); builtFor = browser }
     guard let window, let screen = NSScreen.main else { return }
     let visible = screen.visibleFrame
     if !window.isVisible {
@@ -37,17 +41,17 @@ final class InstallExtensionPanel {
     let folder = FolderDragView(url: Self.folder)
     folder.frame = NSRect(x: 20, y: 86, width: 100, height: 96)
     let text = NSTextField(wrappingLabelWithString:
-      "1. Open chrome://extensions in the profile.\n2. Turn on Developer mode, top right.\n3. Drag this folder onto the page.\n\nOnce per profile.")
+      "1. Open \(browser.scheme)://extensions in the profile.\n2. Turn on Developer mode, top right.\n3. Drag this folder onto the page.\n\nOnce per profile.")
     text.font = .systemFont(ofSize: 13)
     text.frame = NSRect(x: 140, y: 56, width: 260, height: 126)
-    let open = NSButton(title: "Open chrome://extensions", target: self, action: #selector(openExtensionsPage))
+    let open = NSButton(title: "Open \(browser.scheme)://extensions", target: self, action: #selector(openExtensionsPage))
     open.bezelStyle = .rounded
     open.frame = NSRect(x: 136, y: 16, width: 220, height: 28)
     [folder, text, open].forEach(content.addSubview)
     return window
   }
 
-  @objc private func openExtensionsPage() { Chrome.open([URL(string: "chrome://extensions")!], activate: true) }
+  @objc private func openExtensionsPage() { Chrome.open([URL(string: "\(browser.scheme)://extensions")!], activate: true) }
 }
 
 // The folder icon in the install window, a drag source that puts the folder's real file URL on the

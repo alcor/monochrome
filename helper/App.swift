@@ -133,7 +133,7 @@ final class App: NSObject, NSApplicationDelegate {
     // background.js). Only Chrome, only a pinned tab in a normal window: a mini browser and anything
     // else close as before.
     tap.onCommandW = { [weak self] in
-      guard let self, Prefs.pinnedSleep, Browser.active == .chrome, minis.frontWindow == nil,
+      guard let self, Prefs.pinnedSleep, Browser.active.isChromium, minis.frontWindow == nil,
             let connection = frontConnection, connection.frontPinned else { return false }
       send(["sleepFront": true], to: connection)
       return true
@@ -198,7 +198,7 @@ final class App: NSObject, NSApplicationDelegate {
     }
     // Chrome is started at login to get its launch flags (unless Settings → Browser says not to);
     // Safari takes none and starts when wanted.
-    if Browser.current == .chrome && Prefs.openBrowserAtLaunch {
+    if Browser.current.isChromium && Prefs.openBrowserAtLaunch {
       if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
     }
   }
@@ -499,7 +499,7 @@ final class App: NSObject, NSApplicationDelegate {
     // At most every two seconds unless forced: with a single profile the titles carry no name, and
     // this would read the window list on every message for nothing. Safari names no profile in its
     // titles; its connections are told apart by Safari's own profile id instead.
-    guard Browser.active == .chrome, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
+    guard Browser.active.isChromium, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
     lastLearn = Date()
     for app in Chrome.runningApps {
       let browser = Chrome.name(of: app)

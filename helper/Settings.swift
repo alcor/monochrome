@@ -254,8 +254,7 @@ extension ConnectedProfile {
       name = connection.profile ?? safari.label
     } else {
       guard let profile = connection.profile else { return nil }
-      let index = Chrome.chromeVariants.firstIndex { $0.name == connection.browser } ?? 0
-      variant = Chrome.chromeVariants[index]
+      variant = Chrome.chromiumVariants.first { $0.name == connection.browser } ?? Chrome.chromeVariants[0]
       name = profile
     }
     browser = variant.name

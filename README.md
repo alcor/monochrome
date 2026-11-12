@@ -15,7 +15,7 @@ Safari is supported as well, from the same app and the same extension files, wit
 
 ## Install
 
-Requires macOS 13 or later and Google Chrome. Chrome Beta, Dev, Canary and Chromium count as Chrome throughout.
+Requires macOS 13 or later and Google Chrome or Microsoft Edge. Chrome Beta, Dev, Canary and Chromium count as Chrome throughout; Edge differs in the few places listed under [Microsoft Edge](#microsoft-edge).
 
 1. **Get the app.** Either download `Monochrome-app-<version>.zip` from https://github.com/arfct/monochrome/releases/latest, unzip it and move Monochrome.app to Applications, or build it from source (next section). The release is signed with the Artifact Creative Foundation's Developer ID and notarized by Apple, so it opens like any downloaded app. Move it to Applications before the first open: at launch it registers its own location with Chrome.
 
@@ -70,6 +70,24 @@ Safari differences:
 - The extension talks to the app through its app extension: the extension's messages go to the app over a socket in the app group container (`~/Library/Group Containers/TVA9Z8LD95.com.artifact.monochrome`), and the app answers through Safari. Details are in `docs/safari.md`.
 
 None of the Safari behavior has been tried in Safari yet; `docs/safari.md` lists what is unmeasured, including the Accessibility shape of Safari's profile menu and of 27.3's tab sidebar.
+
+## Microsoft Edge
+
+Edge is Chromium, so it takes the same extension and the same app with every Chrome feature, including locked tab groups. Edge Beta, Dev and Canary count as Edge. To use Monochrome with Edge:
+
+1. **Install and open the app** as in steps 1 to 3 above. At every launch the app registers its native messaging host in `~/Library/Application Support/Microsoft Edge/NativeMessagingHosts` (and the Beta, Dev and Canary folders) for each Edge that has run on this Mac.
+2. **Choose Edge** in Monochrome's settings window: Browser → Browser → Edge. The choice appears once Edge is installed. That setting is where links from other apps open, which browser starts at login with the launch flags, and whose Dock tile the app's tile replaces.
+3. **Load the extension** in each Edge profile: `edge://extensions` → Developer mode → Load unpacked → this folder, or Install Extension… on the Browser tab, whose panel opens `edge://extensions`.
+4. **Edge settings.** Turn on vertical tabs, and pin tabs or put them in a tab group named `Locked`.
+
+Edge differences:
+
+- App Shortcuts: only ⌥⌘↓ and ⌥⌘↑ (Select Next Tab, Select Previous Tab) are written to Edge's preferences. Edge has no Collapse Vertical Tabs menu item to take ⌘S, so Save Page As stays on ⌘S.
+- Window titles: Edge writes "Microsoft Edge" with a zero-width space after "Microsoft", and on Windows puts the profile's name before its own. The app reads both orders, so the profile is learned from either.
+- The extension's options page and the Extension shortcuts row open `edge://extensions/shortcuts`.
+- Chrome and Edge can run at the same time. Their windows and connections are handled together, as Chrome's channels are.
+
+None of the Edge behavior has been tried in Edge yet: the window title order on the Mac, the Profiles menu read over Accessibility, the Tab menu titles the App Shortcuts name, the launch flag, and the mini player's sidebar width with Edge's vertical tabs are unmeasured.
 
 ## Build from source
 
@@ -211,7 +229,7 @@ Typing words and pressing Enter opens the history entry that matches them rather
 - **The Safari extension** (`Contents/PlugIns/Monochrome Extension.appex`): what the extension's native port reaches in Safari. It relays each message to the app over a socket in the app group container, with the Safari profile it came from; the app answers through `SFSafariApplication.dispatchMessage`.
 - **Commands:** `--portable` (the app, registering the host only), `--register-host`, `--status` (the chosen browser, the layout's keycodes, whether the app is running, whether the socket is up), `--routes [url [sender]]`, `--settings`, `--make-default`, `--unregister` (removes the login item), `--check-safari <json>` (the Safari readers on given input, for the tests), `--check-tldr` (a reader request on stdin, the model's answer on stdout, for the tests), `--prefs [--defaults]` (the settings sent to the extension, as JSON), and `--demo`, `--demo-profiles`, `--demo-shade` for the panels over sample data. `--demo-settings [tab] [out.png] [dark]` shows the settings window on a tab (`general`, `browser`, `profiles`, `tabs`, `mini`, `command`, `player`, `router`, or 0 to 7; Router when none) with sample rules and profiles over scratch defaults, so no real setting changes; with `out.png` it draws the tab into that file and quits, no screen recording needed.
 
-The settings window has a row for every feature that can be switched, each with an SF Symbol and one line saying what it does, on eight tabs: General (open at login, automatic updates, the version with Check for Updates…, default browser, Accessibility), Browser (Chrome or Safari, whether Chrome opens when the app starts, the launch flag, the Dock tile; Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions, Extension Shortcuts…, and a warning triangle and Relaunch… when Chrome runs without its launch flags), Profiles (each connected profile with its browser's icon and a letter avatar, the profile keys and the HUD), Tabs (locked tabs and the locked group's title, new tabs at the top, the two App Shortcuts, ⌃Tab, the switcher panel, its thumbnails, delay and size), Mini Browsers (⌥⇧N, ⌥⌘-click, peek browsers, where links from other apps open when no rule claims them, when an unused one closes), Command Bar (⌘L and ⌘T each, Google suggestions, Full Disk Access when Safari is in play, the reader's ⌥⇧R and the state of the model that writes its summary), Player (the mini player, stopping the sites' own pop-out, the nine sites) and Router (the rules). Every default is the behaviour before the settings existed. The app keeps them all and sends the extension the nine it obeys (`{"prefs": {…}}` on each connection and on every change), which it stores and uses even before the app starts; without the app the extension runs on the defaults. `docs/settings.md` has the list. While the window is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
+The settings window has a row for every feature that can be switched, each with an SF Symbol and one line saying what it does, on eight tabs: General (open at login, automatic updates, the version with Check for Updates…, default browser, Accessibility), Browser (Chrome, Edge or Safari, whether Chrome or Edge opens when the app starts, the launch flag, the Dock tile; Install Extension…, which shows the floating panel with the extension folder to drag onto chrome://extensions, Extension Shortcuts…, and a warning triangle and Relaunch… when Chrome runs without its launch flags), Profiles (each connected profile with its browser's icon and a letter avatar, the profile keys and the HUD), Tabs (locked tabs and the locked group's title, new tabs at the top, the two App Shortcuts, ⌃Tab, the switcher panel, its thumbnails, delay and size), Mini Browsers (⌥⇧N, ⌥⌘-click, peek browsers, where links from other apps open when no rule claims them, when an unused one closes), Command Bar (⌘L and ⌘T each, Google suggestions, Full Disk Access when Safari is in play, the reader's ⌥⇧R and the state of the model that writes its summary), Player (the mini player, stopping the sites' own pop-out, the nine sites) and Router (the rules). Every default is the behaviour before the settings existed. The app keeps them all and sends the extension the nine it obeys (`{"prefs": {…}}` on each connection and on every change), which it stores and uses even before the app starts; without the app the extension runs on the defaults. `docs/settings.md` has the list. While the window is open the app shows in the Dock with a menu bar; when it closes the app goes back to running without either.
 
 Logs go to the unified log under subsystem `com.artifact.monochrome`:
 

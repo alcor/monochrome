@@ -3,7 +3,7 @@
    its panels in dark mode. No accent colour: the product is called Monochrome. */
 
 :root {
-  --paper: #808080;
+  --paper: #FFFFFF;
   --paper-edge: #E9E7E2;
   --line: #DAD8D3;
   --text: #1C1C1E;
@@ -23,7 +23,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #404040;
+    --paper: #111111;
     --paper-edge: #0E0E0F;
     --line: #2C2C2E;
     --text: #EDEDEF;

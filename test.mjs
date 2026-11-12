@@ -495,7 +495,12 @@ await songPage.goto('https://open.spotify.com/');
 const song = await sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://open.spotify.com/*' }))[0].id);
 for (let i = 0; i < 50 && !(await sw.evaluate(id => music.has(id), song)); i++) await sleep(100);
 const state = await sw.evaluate(() => playerState());
-assert.deepEqual([state.title, state.artist, state.artwork], ['Song', 'Band', 'https://open.spotify.com/big.png']);
+assert.deepEqual([state.title, state.artist, state.artwork, state.muted], ['Song', 'Band', 'https://open.spotify.com/big.png', false]);
+assert.ok('favicon' in state);
+await sw.evaluate(() => playerAction({ action: 'mute' }));
+assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id)).mutedInfo.muted, song), true);
+await sw.evaluate(() => playerAction({ action: 'mute' }));
+assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id)).mutedInfo.muted, song), false);
 await sw.evaluate(() => playerAction({ action: 'nexttrack' }));
 await songPage.waitForFunction(() => document.title === 'next', null, { timeout: 3000 });
 // Shows while you're on another tab with the sidebar open; × hides it until you've been back on the

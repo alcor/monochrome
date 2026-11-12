@@ -142,6 +142,7 @@ The Browser Profiles list (each connected profile with its browser's icon and le
 | Locked tabs come back when closed | T | on | `lockedTabs`, sent | `lockedTabs()` in `background.js` | Pinned tabs reopen at their locked address; ⌃R resets one |
 | Locked group | text field, prompt "none" | Locked | `lockedGroup`, sent | `LOCKED_GROUPS` in `background.js` | Tabs in a Chrome tab group with this title lock too |
 | New tabs open at the top | T | on | `newTabsAtTop`, sent | `tabs.onCreated` in `background.js`; `moveToMain`; `routeOpen` | Directly under the locked tabs |
+| ⌘W sleeps a pinned tab | T | on | `pinnedSleep` | `tap.onCommandW` in `App.swift`; `sleepFront` in `background.js` | Instead of Chrome asking; goes to the last tab used. Chrome only |
 | Collapse the tab sidebar ⌘S | T | on | `shortcutSidebar` | `Install.setChromeShortcuts`, `SafariShortcuts.write` | Save Page As moves to ⇧⌘S, after a browser restart |
 | Next and previous tab ⌥⌘↓, ⌥⌘↑ | T | on | `shortcutTabs` | same | Steps down and up the tab list, after a browser restart |
 | ⌃Tab goes to the last used tab | T | on | `switcher` | `Tap.handle` | By recent use in this window; off leaves the browser's order |

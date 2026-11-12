@@ -26,6 +26,7 @@ final class Connection {
   let peer: Peer
   var tabs: [TabInfo] = []
   var front: (id: Int, frame: CGRect, title: String)?
+  var frontPinned = false // the front window's active tab is pinned (⌘W sleeps it)
   var profile: String? // the name Chrome puts in this profile's window titles, once seen; on Safari, the learned name
   var browser: String? // which Chrome (Chrome.Variant.name), learned with the profile
   var app: NSRunningApplication? { Chrome.runningApps.first { Chrome.name(of: $0) == browser } ?? Chrome.running }
@@ -128,6 +129,15 @@ final class App: NSObject, NSApplicationDelegate {
       return true
     }
     tap.onCommandT = { [weak self] in self?.openOmnibox(newTab: true) ?? false }
+    // Chrome asks before it closes a pinned tab; ⌘W on one sleeps it instead (sleepFront in
+    // background.js). Only Chrome, only a pinned tab in a normal window: a mini browser and anything
+    // else close as before.
+    tap.onCommandW = { [weak self] in
+      guard let self, Prefs.pinnedSleep, Browser.active == .chrome, minis.frontWindow == nil,
+            let connection = frontConnection, connection.frontPinned else { return false }
+      send(["sleepFront": true], to: connection)
+      return true
+    }
     tap.omniboxShown = { [weak self] in self?.omnibox.isVisible ?? false }
     // ⌥⇧R: the reader in the tab in front, when the setting is on and that profile's extension is connected.
     tap.onReader = { [weak self] in
@@ -570,6 +580,7 @@ final class App: NSObject, NSApplicationDelegate {
       }
       if let id = message["window"] as? Int, let front = message["front"] as? [String: Any], let frame = rect(front) {
         connection.front = (id, frame, front["title"] as? String ?? "")
+        connection.frontPinned = front["pinned"] as? Bool ?? false
         learnSafariProfile(connection)
       }
       merge()

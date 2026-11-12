@@ -93,6 +93,7 @@ The Safari extension target's run script copies the same files into the app exte
 | ⌃Tab, ⌃⇧Tab | Last used tab in this window. Hold ⌃ for the switcher; release to pick; Esc cancels. Turn off in Settings → Tabs | app; extension commands as fallback |
 | ⌃R | Reset the current locked tab to its locked URL | extension command |
 | ⌘W, middle-click | Close. A locked tab comes back at its locked URL | Chrome; ⌘W optionally the extension |
+| ⌘W, on a pinned tab in Chrome | Sleep it instead of closing it (Chrome asks before closing a pinned tab): the window goes to the last tab used, and the pinned tab leaves the ⌃Tab order until it is used again. Turn off in Settings → Tabs | app |
 | ⌥⇧N, from any app | New mini browser. Turn off in Settings → Mini Browsers | app; extension command as fallback |
 | ⌥⌘-click | Open the link in a mini browser. Turn off in Settings → Mini Browsers | app only |
 | ⌘L, in a mini browser | Address field, URL selected. Enter goes; Esc closes the field | app; in-page bar as fallback |

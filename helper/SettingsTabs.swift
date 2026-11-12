@@ -257,6 +257,8 @@ struct TabsSettings: View {
         }
         .disabled(!Prefs.lockedTabs)
         SettingToggle("New tabs open at the top", detail: "Directly under the locked tabs", symbol: "arrow.up.to.line", isOn: Prefs.binding(.newTabsAtTop))
+        SettingToggle("⌘W sleeps a pinned tab", detail: "Instead of Chrome asking; goes to the last tab used", symbol: "moon.zzz",
+                      isOn: Prefs.binding(.pinnedSleep))
       }
       Section("App Shortcuts") {
         SettingToggle("Collapse the tab sidebar", keys: "⌘S", detail: "Save Page As moves to ⇧⌘S, after a browser restart", symbol: "sidebar.left",

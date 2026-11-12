@@ -93,6 +93,7 @@ function helperMessage(raw) {
   else if (msg.resend) helperHello(); // the app restarted under a host that stayed up
   else if (msg.focusFront) focusFront().catch(console.error); // Safari: the app switched to this profile
   else if (msg.omnibox) omniboxFromHelper(msg.omnibox).catch(console.error);
+  else if (msg.sleepFront) sleepFront().catch(console.error);
   else if (msg.tldr) tldrFromHelper(msg.tldr);
 }
 
@@ -195,7 +196,8 @@ async function helperMru() {
   const front = await chrome.windows.getLastFocused().catch(() => null);
   const [frontTab] = front ? await chrome.tabs.query({ active: true, windowId: front.id }) : [];
   helperSend({ mru, window: front?.id ?? -1,
-               front: front && { left: front.left, top: front.top, width: front.width, height: front.height, title: frontTab?.title || '' } });
+               front: front && { left: front.left, top: front.top, width: front.width, height: front.height, title: frontTab?.title || '',
+                                 pinned: !!frontTab?.pinned } });
 }
 
 // Chrome's own favicon cache (/_favicon/, the favicon permission); Safari has neither it nor
@@ -234,6 +236,7 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
   // A title ticking in a tab the switcher never shows (a timer, an unread count) is not a reason to resend.
   if (('title' in change || 'favIconUrl' in change) && mruSentIds.has(tabId)) helperMruSoon();
   if ('title' in change || 'url' in change) helperMinisSoon();
+  if ('pinned' in change) helperMruSoon(); // the app reads whether the front tab is pinned (⌘W)
   if (change.status === 'complete') helperThumbSoon(tabId);
 });
 chrome.tabs.onRemoved.addListener(tabId => {
@@ -259,6 +262,14 @@ async function helperThumbFront() {
 // (the helper's tap reports those), at most once a second per tab, scaled down here before it leaves
 // the worker.
 const thumbAt = new Map(), thumbTimers = new Map();
+// A tab that comes back under a new id (discarded, background.js): its favicon and thumbnail
+// bookkeeping follow it, and the app gets the list with the new id.
+chrome.tabs.onReplaced.addListener((added, removed) => {
+  for (const byId of [faviconSent, thumbAt]) if (byId.has(removed)) { byId.set(added, byId.get(removed)); byId.delete(removed); }
+  clearTimeout(thumbTimers.get(removed));
+  thumbTimers.delete(removed);
+  helperMruSoon();
+});
 function helperThumbSoon(tabId, after = 0) {
   if (!helper || !PREFS.thumbnails) return; // Settings → Tabs → Thumbnails
   const wait = Math.max(after, THUMB_MIN_MS - (Date.now() - (thumbAt.get(tabId) || 0)));

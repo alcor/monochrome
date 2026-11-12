@@ -1,0 +1,282 @@
+/* Monochrome: the app's grays, the system face, black for the one action.
+   The light set is the warm off-white of the app's demo backdrop; the dark set is
+   its panels in dark mode. No accent colour: the product is called Monochrome. */
+
+:root {
+  --paper: #F3F2EF;
+  --paper-edge: #E9E7E2;
+  --line: #DAD8D3;
+  --text: #1C1C1E;
+  --muted: #6E6E73;
+  --faint: #A9A8A4;
+  --card: #FBFBFA;
+  --key: #FFFFFF;
+  --key-edge: #C9C7C2;
+  --ink: #1C1C1E;
+  --on-ink: #FFFFFF;
+  --frame: #1C1C1E;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --measure: 34rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141415;
+    --paper-edge: #0E0E0F;
+    --line: #2C2C2E;
+    --text: #EDEDEF;
+    --muted: #98989D;
+    --faint: #5A5A5E;
+    --card: #1C1C1E;
+    --key: #2C2C2E;
+    --key-edge: #3A3A3C;
+    --ink: #EDEDEF;
+    --on-ink: #141415;
+    --frame: #000000;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; }
+
+h1, h2, h3 { text-wrap: balance; font-weight: 600; letter-spacing: -0.022em; line-height: 1.1; margin: 0; }
+h1 { font-size: clamp(2.7rem, 5.6vw, 4.6rem); letter-spacing: -0.035em; }
+h2 { font-size: clamp(1.9rem, 3.6vw, 2.8rem); margin-bottom: 0.6em; letter-spacing: -0.03em; }
+h3 { font-size: 1.08rem; margin-bottom: 0.4em; letter-spacing: -0.01em; }
+p { margin: 0 0 1em; }
+
+.label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1.3rem;
+}
+
+/* Keys, the way the app prints its shortcuts. */
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0.05em 0.42em 0.1em;
+  border: 1px solid var(--key-edge);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--key);
+  font-family: var(--sans);
+  font-size: 0.82em;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: 0.08em;
+}
+h2 kbd { font-size: 0.62em; border-radius: 10px; padding: 0.06em 0.36em 0.1em; vertical-align: 0.14em; }
+.label kbd { font-size: 1.1em; letter-spacing: 0; vertical-align: 0; padding: 0 0.3em; }
+
+.quiet {
+  text-decoration: none;
+  color: var(--muted);
+  border-bottom: 1px solid var(--faint);
+  padding-bottom: 1px;
+  transition: color .2s, border-color .2s;
+}
+.quiet:hover { color: var(--text); border-color: var(--text); }
+.muted { color: var(--muted); }
+
+.button {
+  display: inline-block;
+  padding: .72rem 1.7rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  text-decoration: none;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+.button:hover, .button:focus-visible { opacity: .86; }
+
+/* The mark: the app icon's ring and inner disc. */
+.mark-svg { width: 26px; height: 26px; flex: none; fill: currentColor; }
+
+/* Header */
+.top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px clamp(16px, 4vw, 48px);
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.mark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 1.08rem; font-weight: 600; letter-spacing: -0.01em; }
+.top nav { display: flex; gap: clamp(14px, 3vw, 32px); }
+.top nav a {
+  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+  text-decoration: none; color: var(--muted); transition: color .2s;
+}
+.top nav a:hover { color: var(--text); }
+@media (max-width: 680px) { .top nav { display: none; } }
+
+main > section { padding: clamp(72px, 11vw, 140px) clamp(16px, 5vw, 64px); max-width: 1240px; margin: 0 auto; }
+
+/* Hero */
+.hero { text-align: center; padding-top: clamp(48px, 8vw, 100px) !important; }
+.hero-text { max-width: 54rem; margin: 0 auto; }
+.lede { font-size: 1.2rem; max-width: var(--measure); margin: 1.8rem auto 2.2rem; }
+.cta { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: baseline; justify-content: center; }
+.cta.left { justify-content: flex-start; }
+.fine { font-size: .9rem; color: var(--muted); margin-top: 1.1rem; }
+.hero figure { margin: clamp(48px, 7vw, 80px) auto 0; max-width: 1080px; }
+
+/* A screenshot on a desk: the app's own panels over its demo backdrop. */
+.shot {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 30px 60px -34px rgba(28, 28, 30, .35), 0 10px 20px -14px rgba(28, 28, 30, .16);
+}
+/* A settings window: a dark, rounded frame around the app's own window. */
+.window {
+  background: var(--frame);
+  padding: 8px;
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.06) inset,
+    0 30px 60px -30px rgba(28, 28, 30, .45),
+    0 12px 24px -12px rgba(28, 28, 30, .22);
+}
+.window img { border-radius: 13px; width: 100%; }
+.bare img { filter: drop-shadow(0 24px 30px rgba(28,28,30,.18)); }
+
+/* The switcher's words sit under the hero's picture of it. */
+.switcher { padding-top: clamp(48px, 7vw, 90px) !important; }
+.switcher .copy.center { margin-bottom: 0; }
+.shot.hud { width: min(100%, 440px) !important; }
+
+/* Features */
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: center;
+}
+.feature figure { margin: 0; display: flex; flex-direction: column; align-items: center; }
+.feature figure > * { width: min(100%, 560px); }
+.feature.reverse .copy { order: 2; }
+.copy { max-width: var(--measure); }
+.copy.center { text-align: center; margin: 0 auto 3rem; }
+@media (max-width: 860px) {
+  .feature { grid-template-columns: 1fr; }
+  .feature.reverse .copy { order: 0; }
+}
+figcaption { font-size: 0.92rem; color: var(--muted); text-align: center; margin-top: 1.1rem; }
+
+.notes { list-style: none; padding: 0; margin: 1.6rem 0 0; border-top: 1px solid var(--line); }
+.notes li { padding: .85rem 0; border-bottom: 1px solid var(--line); font-size: 1rem; }
+.notes li > span:first-child {
+  display: inline-block; width: 7.4rem;
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  vertical-align: 0.12em;
+}
+@media (max-width: 480px) { .notes li > span:first-child { display: block; margin-bottom: .2rem; } }
+
+/* Privacy */
+.claims {
+  list-style: none; counter-reset: c; padding: 0; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0;
+  border-top: 1px solid var(--line);
+  max-width: 1080px;
+}
+.claims li {
+  counter-increment: c;
+  padding: 2rem clamp(16px, 2vw, 28px) 2.2rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1rem;
+}
+.claims li + li { border-left: 1px solid var(--line); }
+.claims li::before {
+  content: counter(c, decimal-leading-zero);
+  font-family: var(--mono);
+  font-size: .75rem;
+  letter-spacing: .14em;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 1.1rem;
+}
+@media (max-width: 1060px) { .claims li:nth-child(odd) { border-left: 0; } }
+@media (max-width: 560px) { .claims li { border-left: 0 !important; } }
+.claims-more { text-align: center; margin-top: 2.2rem; }
+
+/* Download */
+.get { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: clamp(32px, 6vw, 96px); align-items: start; }
+@media (max-width: 860px) { .get { grid-template-columns: 1fr; } }
+.facts { list-style: none; padding: 0; margin: 1.6rem 0 2rem; border-top: 1px solid var(--line); }
+.facts li { padding: .7rem 0; border-bottom: 1px solid var(--line); font-size: 1rem; }
+.steps { padding: 0; margin: 0; list-style: none; counter-reset: s; }
+.steps li { counter-increment: s; position: relative; padding: 0 0 1.4rem 3rem; font-size: 1rem; }
+.steps li::before {
+  content: counter(s);
+  position: absolute; left: 0; top: .05rem;
+  width: 1.9rem; height: 1.9rem; border-radius: 50%;
+  border: 1px solid var(--line);
+  font-family: var(--mono); font-size: .8rem; line-height: 1.8rem; text-align: center; color: var(--muted);
+}
+.steps strong { font-weight: 600; }
+.after { font-size: .95rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1.2rem; margin-top: .6rem; }
+.after p { margin: 0 0 .5rem; }
+
+/* Closing */
+.closing { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.2rem; }
+.closing .mark-svg { width: 72px; height: 72px; }
+.closing h2 { margin: 0.4rem 0 0.4rem; }
+
+/* Footer */
+footer {
+  display: flex; gap: 22px; justify-content: center; align-items: baseline; flex-wrap: wrap;
+  padding: 48px 16px 64px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
+}
+footer a { text-decoration: none; }
+footer a:hover { color: var(--text); }
+
+/* Privacy, terms, support, 404 */
+.doc { max-width: 42rem; margin: 0 auto; padding: clamp(48px, 8vw, 110px) clamp(16px, 5vw, 32px); }
+.doc h1 { font-size: clamp(2.3rem, 5vw, 3.4rem); margin-bottom: 1.4rem; }
+.doc h2 { font-size: 1.55rem; margin: 2.8rem 0 1rem; }
+.doc li { margin-bottom: .7rem; }
+.doc ul, .doc ol { padding-left: 1.2rem; }
+.doc strong { font-weight: 600; }
+.doc code { font-family: var(--mono); font-size: .82em; background: var(--paper-edge); padding: .1em .35em; border-radius: 4px; }
+.doc .updated { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+/* Fade in as you read, once. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    main > section > * {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  }
+}

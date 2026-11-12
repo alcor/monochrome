@@ -254,6 +254,19 @@ A Chrome API for the Tab key, for drawing over the window, or for native panels 
 
 Until then, the extension does the bookkeeping and the app does the drawing.
 
+## Product page
+
+`site/` is Monochrome's product page: static HTML and CSS, no build step and no script. It follows the `frontpage` skill and the Product page rules in the Artifact Primer (`arfct/ops`, `primer/products.md`).
+
+- `site/index.html`: the page. Every claim on it comes from this README, `docs/privacy.md` or the settings; a change that makes one false changes the page in the same PR.
+- `site/privacy.html`: the privacy policy, from `docs/privacy.md`. Keep the two in step.
+- `site/support.html`, `site/terms.html`, `site/404.html`: the other pages, in the same header, footer and `style.css`.
+- `site/_headers`: the CSP and other headers, in Cloudflare Pages' format.
+- `site/img/`: screenshots from the app's demo modes on sample data, made by `site-src/images.sh`; `og.jpg` is a 1200 by 630 shot of `site-src/og.html` in a headless browser.
+- `site/favicon.svg`: the icon's two shapes, black on light and white on dark.
+
+The download button links `releases/latest`, because the release asset's name carries the version. Preview with `python3 -m http.server -d site` and open `http://localhost:8000/`.
+
 ## License
 
 MIT. See `LICENSE`. The reader includes Mozilla's Readability.js, unmodified, under the Apache License 2.0: `tldr/vendor/LICENSE`.

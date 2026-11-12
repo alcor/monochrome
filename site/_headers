@@ -1,0 +1,8 @@
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Permissions-Policy: interest-cohort=(), camera=(), microphone=(), geolocation=()
+
+/img/*
+  Cache-Control: public, max-age=604800

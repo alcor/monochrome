@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monochrome: Chrome, with Arc's tabs</title>
+<meta name="description" content="Monochrome is a free Mac app and Chrome extension that makes Google Chrome keep tabs the way Arc did: locked tabs that come back when closed, ⌃Tab by recent use, and small windows for links from other apps.">
+<meta name="theme-color" content="#F3F2EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141415" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Monochrome: Chrome, with Arc's tabs">
+<meta property="og:description" content="Locked tabs, ⌃Tab by recent use, and small windows for links from other apps, in Google Chrome on the Mac.">
+<meta property="og:image" content="https://monochrome.fyi/img/og.jpg">
+<meta property="og:url" content="https://monochrome.fyi/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/img/icon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/" aria-label="Monochrome">
+    <svg class="mark-svg" viewBox="20 20 216 216" aria-hidden="true"><path d="M180.382 217.862C164.999 226.849 147.101 232 128 232C109.208 232 91.5802 227.015 76.3662 218.297L102.371 173.255C109.935 177.548 118.681 180 128 180C137.628 180 146.645 177.382 154.378 172.821L180.382 217.862ZM128 24C185.438 24 232 70.5624 232 128C232 162.388 215.309 192.875 189.588 211.809L163.263 166.212C173.553 156.711 180 143.11 180 128C180 99.2812 156.719 76 128 76C99.2812 76 76 99.2812 76 128C76 143.428 82.7215 157.284 93.3926 166.807L67.1143 212.321C40.9951 193.429 24 162.7 24 128C24 70.5624 70.5624 24 128 24Z"/><path d="M148.875 163.291C142.76 166.916 135.624 169 128 169C120.685 169 113.819 167.082 107.873 163.726L128.5 128L148.875 163.291ZM128 87C150.644 87 169 105.356 169 128C169 139.015 164.655 149.013 157.587 156.38L138.026 122.5L128.5 106L118.974 122.5L99.041 157.022C91.6028 149.6 87 139.338 87 128C87 105.356 105.356 87 128 87Z"/></svg>
+    <span>Monochrome</span>
+  </a>
+  <nav>
+    <a href="/#switcher">⌃Tab</a>
+    <a href="/#locked">Locked tabs</a>
+    <a href="/#links">Links</a>
+    <a href="/#private">Privacy</a>
+    <a href="/#get">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="hero-text">
+    <p class="label">A Mac app and a Chrome extension</p>
+    <h1>Chrome, with Arc’s tabs.</h1>
+    <p class="lede">Close a pinned tab and it comes back. Hold <kbd>⌃</kbd><kbd>Tab</kbd> to step through the tabs you just used. A link from Slack opens in a small window instead of the middle of your work. All of it inside Chrome’s own window, which Monochrome adds nothing to.</p>
+    <p class="cta"><a class="button" href="https://github.com/arfct/monochrome/releases/latest">Download for Mac</a> <a href="#get" class="quiet">What it needs →</a></p>
+    <p class="fine">Free and open source. macOS 13 or later, with Google Chrome.</p>
+  </div>
+  <figure>
+    <div class="shot">
+      <img src="/img/switcher.webp" width="1280" height="420" alt="The ⌃Tab switcher: five tabs in a row as thumbnails, most recent first, titled Monochrome, Liquid Glass, Inbox (3) – Gmail, Figma and Hacker News, with Hacker News selected.">
+    </div>
+  </figure>
+</section>
+
+<section id="switcher" class="switcher">
+  <div class="copy center">
+    <p class="label"><kbd>⌃</kbd><kbd>Tab</kbd></p>
+    <h2>Back to the tab you were just in.</h2>
+    <p>The first <kbd>⌃</kbd><kbd>Tab</kbd> goes to the tab you used last in this window. Hold <kbd>⌃</kbd> and the switcher above shows the five most recent as thumbnails, newest first. Let go to pick one; <kbd>Esc</kbd> stays put. Pressed twice, it brings you back where you started.</p>
+    <p>The thumbnails are taken when you visit a tab, and kept in memory only.</p>
+  </div>
+</section>
+
+<section id="locked" class="feature">
+  <div class="copy">
+    <p class="label">Locked tabs</p>
+    <h2>Close it. It comes back.</h2>
+    <p>Pin a tab, or put it in a tab group named Locked, and it remembers the address it had. Close it and it reopens in place, at that address. Wander off and <kbd>⌃</kbd><kbd>R</kbd> takes it back. Unpin it, or drag it out of the group, to close it for good.</p>
+    <p>New tabs open directly under the locked ones, <kbd>⌘</kbd><kbd>T</kbd> included, so the tab you just made is always at the top.</p>
+  </div>
+  <figure>
+    <div class="window">
+      <picture>
+        <source srcset="/img/tabs-dark.webp" media="(prefers-color-scheme: dark)">
+        <img src="/img/tabs-light.webp" width="760" height="500" loading="lazy" alt="The Tabs settings: Locked tabs come back when closed, the locked group titled Locked, new tabs open at the top, ⌘W sleeps a pinned tab, and the switcher’s options beside them.">
+      </picture>
+    </div>
+  </figure>
+</section>
+
+<section id="links" class="feature reverse">
+  <div class="copy">
+    <p class="label">Mini browsers and link rules</p>
+    <h2>Links from other apps get a window of their own.</h2>
+    <p>Monochrome is your default browser, so a link from Slack, Mail or a terminal opens in a mini browser: a small Chrome window with no tab strip. <kbd>⌘</kbd><kbd>O</kbd> moves the page into Chrome when it’s worth keeping. One left alone for 12 hours closes itself.</p>
+    <p>Rules send some links elsewhere: atlassian.net links to a group in the Work profile, Zoom straight to Zoom, GitHub to a tab already open on it. The first rule that matches wins.</p>
+  </div>
+  <figure>
+    <div class="window">
+      <picture>
+        <source srcset="/img/router-dark.webp" media="(prefers-color-scheme: dark)">
+        <img src="/img/router-light.webp" width="760" height="500" loading="lazy" alt="The Router settings: five rules for atlassian.net, github.com, zoom.us /j/*, Google Docs and links from Slack, with the first one open, sending atlassian.net links to the Work tab group in the Work profile.">
+      </picture>
+    </div>
+  </figure>
+</section>
+
+<section id="command" class="feature">
+  <div class="copy">
+    <p class="label">Command bar</p>
+    <h2>Two letters, and the site you meant.</h2>
+    <p>Turn the command bar on and <kbd>⌘</kbd><kbd>L</kbd> and <kbd>⌘</kbd><kbd>T</kbd> open it over the window in place of Chrome’s address bar. It finishes the address you type most, then lists your open tabs, history, bookmarks and Google’s suggestions.</p>
+    <p>It starts switched off. Each key has its own switch in Settings.</p>
+  </div>
+  <figure>
+    <div class="bare">
+      <picture>
+        <source srcset="/img/omnibox-dark.webp" media="(prefers-color-scheme: dark)">
+        <img src="/img/omnibox-light.webp" width="760" height="680" loading="lazy" alt="The command bar, typed github.com: GitHub, a search for git, a switch to an open pull request tab, three pages from history, and two Google suggestions.">
+      </picture>
+    </div>
+  </figure>
+</section>
+
+<section id="reader" class="feature reverse">
+  <div class="copy">
+    <p class="label">Reader</p>
+    <h2>The summary first, then the page.</h2>
+    <p><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd> shows the page in front as an article, without its ads, navigation and comments, and puts a summary on top. On macOS 26 and later, Apple’s on-device model writes it, and each point links to the paragraph that says it. Without the model, the card is an outline of the page.</p>
+    <p>Nothing runs on a page until you ask. <kbd>Esc</kbd> puts the page back.</p>
+  </div>
+  <figure>
+    <div class="window">
+      <picture>
+        <source srcset="/img/reader-dark.webp" media="(prefers-color-scheme: dark)">
+        <img src="/img/reader-light.webp" width="1280" height="690" loading="lazy" alt="The reader on a sample recipe, Brown butter oat cookies: a summary card with five points from Apple’s on-device model, links to the recipe’s sections, and the first paragraph.">
+      </picture>
+    </div>
+  </figure>
+</section>
+
+<section id="more" class="feature">
+  <div class="copy">
+    <p class="label">The rest</p>
+    <h2>A few more keys.</h2>
+    <ul class="notes">
+      <li><span>Sleep</span> <kbd>⌘</kbd><kbd>W</kbd> on a pinned tab puts it to sleep instead of asking whether to close it.</li>
+      <li><span>Peek</span> A link from a locked tab opens over the window. Click outside it and it’s gone.</li>
+      <li><span>Profiles</span> <kbd>⌃</kbd><kbd>⌥</kbd><kbd>1</kbd> to <kbd>9</kbd> picks a Chrome profile by its place in the menu.</li>
+      <li><span>Mini player</span> What’s playing on Spotify, YouTube Music and seven other sites, at the foot of the tab sidebar.</li>
+      <li><span>Sidebar</span> <kbd>⌘</kbd><kbd>S</kbd> hides Chrome’s vertical tabs. Save Page As moves to <kbd>⇧</kbd><kbd>⌘</kbd><kbd>S</kbd>.</li>
+    </ul>
+  </div>
+  <figure>
+    <div class="shot hud">
+      <img src="/img/profiles.webp" width="440" height="220" loading="lazy" alt="The profile switcher over the window: three Chrome profiles as initials on coloured circles, Work (acme.com), Personal, selected, and Geist.">
+    </div>
+    <figcaption><kbd>⌃</kbd><kbd>⌥</kbd><kbd>→</kbd> steps to the next Chrome profile.</figcaption>
+  </figure>
+</section>
+
+<section id="private" class="private">
+  <div class="copy center">
+    <p class="label">Privacy</p>
+    <h2>Your tabs stay on your Mac.</h2>
+    <p>Monochrome sees every tab you open. Here is what it does with them.</p>
+  </div>
+  <ol class="claims">
+    <li>
+      <h3>No servers</h3>
+      <p>We run none: no accounts, no analytics, no crash reports. The extension talks only to the app on the same Mac, over Chrome’s native messaging.</p>
+    </li>
+    <li>
+      <h3>Pictures in memory</h3>
+      <p>The switcher’s thumbnails stay in the app’s memory and are gone when the tab closes or Chrome restarts. Summaries are never written to disk.</p>
+    </li>
+    <li>
+      <h3>What does leave</h3>
+      <p>What you type in the command bar goes to Google for suggestions, as Chrome’s address bar does; one switch stops it. Once a day the app checks GitHub for an update.</p>
+    </li>
+    <li>
+      <h3>Pages only when asked</h3>
+      <p>The reader reads a page’s text only when you open it on that page, and Apple’s model summarises it on the Mac.</p>
+    </li>
+  </ol>
+  <p class="claims-more"><a href="/privacy" class="quiet">Read the privacy policy →</a></p>
+</section>
+
+<section id="get" class="get">
+  <div class="copy">
+    <p class="label">Download</p>
+    <h2>Free, for any Mac with Chrome.</h2>
+    <ul class="facts">
+      <li>macOS 13 or later.</li>
+      <li>Google Chrome. Beta, Dev, Canary and Chromium work too.</li>
+      <li>Free, and open source under the MIT licence.</li>
+      <li>Signed with Artifact’s Developer ID and notarized by Apple, so it opens like any downloaded app.</li>
+    </ul>
+    <p class="cta left"><a class="button" href="https://github.com/arfct/monochrome/releases/latest">Download for Mac</a> <a href="https://github.com/arfct/monochrome" class="quiet">Source on GitHub →</a></p>
+  </div>
+  <div>
+    <ol class="steps">
+      <li><strong>Move Monochrome to Applications and open it.</strong> It connects itself to Chrome, starts at login, puts its own tile in the Dock in place of Chrome’s, and asks macOS to make it your default browser.</li>
+      <li><strong>Allow Accessibility</strong> when it asks. <kbd>⌃</kbd><kbd>Tab</kbd>, <kbd>⌥</kbd><kbd>⌘</kbd>-click and the profile keys need it.</li>
+      <li><strong>Quit Chrome and open it from the Monochrome tile.</strong> Started that way, Chrome gets the flags Monochrome needs.</li>
+      <li><strong>Load the extension.</strong> Settings → Browser → Install Extension… shows the folder to drag onto <code>chrome://extensions</code>, with Developer mode on.</li>
+      <li><strong>Show tabs vertically:</strong> right-click Chrome’s tab bar. Pin the tabs you want locked.</li>
+    </ol>
+    <div class="after">
+      <p>It updates itself, checking once a day. Settings → General turns that off.</p>
+      <p><code>uninstall.sh</code> in the source removes the app and everything it set up.</p>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <svg class="mark-svg" viewBox="20 20 216 216" aria-hidden="true"><path d="M180.382 217.862C164.999 226.849 147.101 232 128 232C109.208 232 91.5802 227.015 76.3662 218.297L102.371 173.255C109.935 177.548 118.681 180 128 180C137.628 180 146.645 177.382 154.378 172.821L180.382 217.862ZM128 24C185.438 24 232 70.5624 232 128C232 162.388 215.309 192.875 189.588 211.809L163.263 166.212C173.553 156.711 180 143.11 180 128C180 99.2812 156.719 76 128 76C99.2812 76 76 99.2812 76 128C76 143.428 82.7215 157.284 93.3926 166.807L67.1143 212.321C40.9951 193.429 24 162.7 24 128C24 70.5624 70.5624 24 128 24Z"/><path d="M148.875 163.291C142.76 166.916 135.624 169 128 169C120.685 169 113.819 167.082 107.873 163.726L128.5 128L148.875 163.291ZM128 87C150.644 87 169 105.356 169 128C169 139.015 164.655 149.013 157.587 156.38L138.026 122.5L128.5 106L118.974 122.5L99.041 157.022C91.6028 149.6 87 139.338 87 128C87 105.356 105.356 87 128 87Z"/></svg>
+  <h2>Keep your tabs.</h2>
+  <p><a class="button" href="https://github.com/arfct/monochrome/releases/latest">Download for Mac</a></p>
+</section>
+
+</main>
+
+<footer>
+  <span>Monochrome</span>
+  <a href="/privacy">Privacy</a>
+  <a href="/support">Support</a>
+  <a href="/terms">Terms</a>
+  <a href="https://github.com/arfct/monochrome">Source</a>
+  <span class="muted">© 2026 Artifact</span>
+</footer>
+</body>
+</html>

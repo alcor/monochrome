@@ -70,7 +70,6 @@ header.top {
 header.top .mark {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
 }
 
 header.top .mark-svg {
@@ -78,16 +77,11 @@ header.top .mark-svg {
   height: 36px;
 }
 
-header.top .mark span {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-/* Hero section with big logo at top */
+/* Hero section with centered logo at top */
 .hero .mark-hero {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 1rem;
   margin-bottom: 2rem;
 }
 
@@ -96,9 +90,8 @@ header.top .mark span {
   height: 96px;
 }
 
-.hero .mark-hero span {
-  font-size: 2rem;
-  font-weight: 600;
+.hero .hero-text {
+  text-align: center;
 }
 
 

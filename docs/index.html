@@ -12,29 +12,15 @@
 <meta property="og:image" content="https://monochrome.fyi/img/og.jpg">
 <meta property="og:url" content="https://monochrome.fyi/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/img/icon.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/icon.png">
 <link rel="stylesheet" href="style.css">
-<script>
-// Sticky header: shrink logo on scroll
-window.addEventListener('scroll', function() {
-  var mark = document.querySelector('.mark-svg');
-  if (!mark) return;
-  if (window.scrollY > 50) {
-    mark.style.width = '32px';
-    mark.style.height = '32px';
-  } else {
-    mark.style.width = '';
-    mark.style.height = '';
-  }
-});
-</script>
+<script src="main.js" defer></script>
 </head>
-<body>
+<body class="home">
 <header class="top">
-  <a class="mark" href="/" aria-label="Monochrome">
+  <a class="mark" href="./" aria-label="Monochrome">
     <svg class="mark-svg" viewBox="20 20 216 216" aria-hidden="true"><path d="M180.382 217.862C164.999 226.849 147.101 232 128 232C109.208 232 91.5802 227.015 76.3662 218.297L102.371 173.255C109.935 177.548 118.681 180 128 180C137.628 180 146.645 177.382 154.378 172.821L180.382 217.862ZM128 24C185.438 24 232 70.5624 232 128C232 162.388 215.309 192.875 189.588 211.809L163.263 166.212C173.553 156.711 180 143.11 180 128C180 99.2812 156.719 76 128 76C99.2812 76 76 99.2812 76 128C76 143.428 82.7215 157.284 93.3926 166.807L67.1143 212.321C40.9951 193.429 24 162.7 24 128C24 70.5624 70.5624 24 128 24Z"/><path d="M148.875 163.291C142.76 166.916 135.624 169 128 169C120.685 169 113.819 167.082 107.873 163.726L128.5 128L148.875 163.291ZM128 87C150.644 87 169 105.356 169 128C169 139.015 164.655 149.013 157.587 156.38L138.026 122.5L128.5 106L118.974 122.5L99.041 157.022C91.6028 149.6 87 139.338 87 128C87 105.356 105.356 87 128 87Z"/></svg>
-    <span>Monochrome</span>
   </a>
   <nav>
     <a href="#switcher">⌃Tab</a>
@@ -53,7 +39,7 @@ window.addEventListener('scroll', function() {
   </div>
   <div class="hero-text">
     <h1>The best of Arc in Chrome or Safari.</h1>
-    <p class="lede">Close a pinned tab and it comes back. Hold <kbd>⌃</kbd><kbd>Tab</kbd> to step through the tabs you just used. A link from Slack opens in a small window instead of the middle of your work. All of it inside Chrome’s or Safari's own window, which Monochrome adds nothing to.</p>
+    <p class="lede">Close a pinned tab and it comes back. Hold <kbd>⌃</kbd><kbd>Tab</kbd> to step through the tabs you just used. A link from Slack opens in a small window instead of the middle of your work. All of it inside Chrome’s or Safari’s own window, which Monochrome adds nothing to.</p>
     <p class="cta"><a class="button" href="https://github.com/arfct/monochrome/releases/latest">Download for Mac</a> <a href="#get" class="quiet">What it needs →</a></p>
     <p class="fine">Free and open source. macOS 13 or later, with Google Chrome or Safari.</p>
   </div>
@@ -84,7 +70,7 @@ window.addEventListener('scroll', function() {
   <figure>
     <div class="window">
       <picture>
-        <source srcset="/img/tabs-dark.webp" media="(prefers-color-scheme: dark)">
+        <source srcset="img/tabs-dark.webp" media="(prefers-color-scheme: dark)">
         <img src="img/tabs-light.webp" width="760" height="500" loading="lazy" alt="The Tabs settings: Locked tabs come back when closed, the locked group titled Locked, new tabs open at the top, ⌘W sleeps a pinned tab, and the switcher’s options beside them.">
       </picture>
     </div>
@@ -101,7 +87,7 @@ window.addEventListener('scroll', function() {
   <figure>
     <div class="window">
       <picture>
-        <source srcset="/img/router-dark.webp" media="(prefers-color-scheme: dark)">
+        <source srcset="img/router-dark.webp" media="(prefers-color-scheme: dark)">
         <img src="img/router-light.webp" width="760" height="500" loading="lazy" alt="The Router settings: five rules for atlassian.net, github.com, zoom.us /j/*, Google Docs and links from Slack, with the first one open, sending atlassian.net links to the Work tab group in the Work profile.">
       </picture>
     </div>
@@ -118,7 +104,7 @@ window.addEventListener('scroll', function() {
   <figure>
     <div class="bare">
       <picture>
-        <source srcset="/img/omnibox-dark.webp" media="(prefers-color-scheme: dark)">
+        <source srcset="img/omnibox-dark.webp" media="(prefers-color-scheme: dark)">
         <img src="img/omnibox-light.webp" width="760" height="680" loading="lazy" alt="The command bar, typed github.com: GitHub, a search for git, a switch to an open pull request tab, three pages from history, and two Google suggestions.">
       </picture>
     </div>
@@ -135,7 +121,7 @@ window.addEventListener('scroll', function() {
   <figure>
     <div class="window">
       <picture>
-        <source srcset="/img/reader-dark.webp" media="(prefers-color-scheme: dark)">
+        <source srcset="img/reader-dark.webp" media="(prefers-color-scheme: dark)">
         <img src="img/reader-light.webp" width="1280" height="690" loading="lazy" alt="The reader on a sample recipe, Brown butter oat cookies: a summary card with five points from Apple’s on-device model, links to the recipe’s sections, and the first paragraph.">
       </picture>
     </div>
@@ -207,7 +193,7 @@ window.addEventListener('scroll', function() {
       <li><strong>Allow Accessibility</strong> when it asks. <kbd>⌃</kbd><kbd>Tab</kbd>, <kbd>⌥</kbd><kbd>⌘</kbd>-click and the profile keys need it.</li>
       <li><strong>Quit Chrome or Safari and open it from the Monochrome tile.</strong> Started that way, the browser gets the flags Monochrome needs.</li>
       <li><strong>Load the extension.</strong> Settings → Browser → Install Extension… shows the folder to drag onto <code>chrome://extensions</code> (Chrome) or Safari → Settings → Extensions (Safari), with Developer mode on.</li>
-      <li><strong>Show tabs vertically:</strong> right-click Chrome’s tab bar or Safari's Show Tab Overview. Pin the tabs you want locked.</li>
+      <li><strong>Show tabs vertically:</strong> right-click Chrome’s tab bar or Safari’s Show Tab Overview. Pin the tabs you want locked.</li>
     </ol>
     <div class="after">
       <p>It updates itself, checking once a day. Settings → General turns that off.</p>

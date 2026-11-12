@@ -322,3 +322,8 @@ footer a:hover { color: var(--text); }
     @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
   }
 }
+
+/* Home: the toolbar mark is hidden until the hero mark scrolls away. */
+.home header.top .mark { opacity: 0; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }
+.home.docked header.top .mark { opacity: 1; transform: none; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .home header.top .mark { transition: none; } }

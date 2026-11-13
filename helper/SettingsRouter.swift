@@ -220,7 +220,7 @@ private struct RuleForm: View {
         // Safari has no tab groups: a rule already sending to one keeps it (it opens as a new tab in the
         // front window there), but it is not offered.
         Picker("As", selection: $rule.destination) {
-          ForEach(Rule.Destination.allCases.filter { $0 != .group || Browser.current == .chrome || rule.destination == .group }) { Text($0.title).tag($0) }
+          ForEach(Rule.Destination.allCases.filter { $0 != .group || Browser.current.isChromium || rule.destination == .group }) { Text($0.title).tag($0) }
         }
         if rule.destination == .group {
           TextField("Group", text: $rule.group, prompt: Text("a tab group's title"))

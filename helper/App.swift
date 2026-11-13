@@ -47,11 +47,46 @@ final class UpdateReminders: NSObject, SPUStandardUserDriverDelegate {
   }
 }
 
+// Silent updates (Settings → General → Install updates automatically, Sparkle's SUAutomaticallyUpdate):
+// Sparkle downloads the update in the background and would install it when the app quits, which a
+// login item that runs all day rarely does. Sparkle hands over the install instead, and it runs as
+// soon as the settings window is closed, checked every minute; the app relaunches itself in about a
+// second, and the extension reconnects on its own.
+final class UpdateInstaller: NSObject, SPUUpdaterDelegate {
+  private var pending: (() -> Void)?
+  private var timer: Timer?
+  var busy: () -> Bool = { false }
+
+  // Settings → General → Beta updates: appcast items marked <sparkle:channel>beta</sparkle:channel>
+  // (make release CHANNEL=beta) reach only apps with it on. Items with no channel reach everyone.
+  func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+    Prefs.store.bool(forKey: "betaUpdates") ? ["beta"] : []
+  }
+
+  func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock: @escaping () -> Void) -> Bool {
+    log.notice("update: \(item.displayVersionString, privacy: .public) downloaded; installing when idle")
+    pending = immediateInstallationBlock
+    timer?.invalidate()
+    timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.installIfIdle() }
+    installIfIdle()
+    return true
+  }
+
+  private func installIfIdle() {
+    guard let install = pending, !busy() else { return }
+    pending = nil
+    timer?.invalidate()
+    log.notice("update: installing and relaunching")
+    install()
+  }
+}
+
 final class App: NSObject, NSApplicationDelegate {
   static let bundleId = "com.artifact.monochrome"
   let switcher = Switcher()
   let reminders = UpdateReminders()
-  lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: reminders)
+  let installer = UpdateInstaller()
+  lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: installer, userDriverDelegate: reminders)
   let player = Player()
   let minis = MiniBrowsers()
   let profiles = Profiles()
@@ -77,11 +112,14 @@ final class App: NSObject, NSApplicationDelegate {
     NSApp.setActivationPolicy(.accessory)
     Install.atLaunch()
     NSApp.mainMenu = mainMenu()
+    installer.busy = { SettingsWindow.shared.isVisible }
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
     SettingsWindow.shared.connectedProfiles = { [weak self] in self?.allConnections.compactMap(ConnectedProfile.init) ?? [] }
     SettingsWindow.shared.automaticUpdates = (get: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates ?? true },
                                               set: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates = $0 })
+    SettingsWindow.shared.silentUpdates = (get: { [weak self] in self?.updater.updater.automaticallyDownloadsUpdates ?? true },
+                                           set: { [weak self] in self?.updater.updater.automaticallyDownloadsUpdates = $0 })
     prefsSent = Prefs.json(Prefs.payload)
     NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: Prefs.store, queue: .main) { [weak self] _ in self?.prefsChanged() }
 
@@ -133,7 +171,7 @@ final class App: NSObject, NSApplicationDelegate {
     // background.js). Only Chrome, only a pinned tab in a normal window: a mini browser and anything
     // else close as before.
     tap.onCommandW = { [weak self] in
-      guard let self, Prefs.pinnedSleep, Browser.active == .chrome, minis.frontWindow == nil,
+      guard let self, Prefs.pinnedSleep, Browser.active.isChromium, minis.frontWindow == nil,
             let connection = frontConnection, connection.frontPinned else { return false }
       send(["sleepFront": true], to: connection)
       return true
@@ -198,7 +236,7 @@ final class App: NSObject, NSApplicationDelegate {
     }
     // Chrome is started at login to get its launch flags (unless Settings → Browser says not to);
     // Safari takes none and starts when wanted.
-    if Browser.current == .chrome && Prefs.openBrowserAtLaunch {
+    if Browser.current.isChromium && Prefs.openBrowserAtLaunch {
       if Chrome.running == nil { Chrome.open(activate: false) } else { Chrome.warnIfStartedWithoutFlags() }
     }
   }
@@ -499,7 +537,7 @@ final class App: NSObject, NSApplicationDelegate {
     // At most every two seconds unless forced: with a single profile the titles carry no name, and
     // this would read the window list on every message for nothing. Safari names no profile in its
     // titles; its connections are told apart by Safari's own profile id instead.
-    guard Browser.active == .chrome, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
+    guard Browser.active.isChromium, connections.contains(where: { $0.profile == nil && $0.front != nil }), force || Date().timeIntervalSince(lastLearn) > 2 else { return }
     lastLearn = Date()
     for app in Chrome.runningApps {
       let browser = Chrome.name(of: app)

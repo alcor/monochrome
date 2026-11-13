@@ -275,7 +275,7 @@ chrome.tabs.onCreated.addListener(created => {
     }
     if ((await chrome.windows.get(tab.windowId)).type !== 'normal') return;
     // Chrome records an opener for ⌘T too; only a link (not the New Tab page) stays by its opener.
-    const newTabPage = /^chrome:\/\/new-?tab/.test(created.pendingUrl || created.url);
+    const newTabPage = /^(chrome|edge):\/\/new-?tab/.test(created.pendingUrl || created.url);
     if (tab.openerTabId && !newTabPage && !(await isLocked(tab.openerTabId))) return;
     if (tab.openerTabId && !newTabPage && tab.active && PREFS.peek) { // queues its own run(): don't wait for it inside this one
       openPeekBrowser({ tabId: tab.id }, { id: tab.openerTabId, windowId: tab.windowId }).catch(console.error);
@@ -302,8 +302,11 @@ function repin(tab) {
   return run(() => sync(p => { if (p[tab.id]) p[tab.id] = tab.url; }));
 }
 
+// Edge refuses to let an extension close its New Tab page ("Cannot remove NTP tab"), so one is moved
+// off it first.
 async function closeTabs() {
   const tabs = await chrome.tabs.query({ highlighted: true, currentWindow: true });
+  await Promise.all(tabs.filter(t => /^edge:\/\/newtab/.test(t.pendingUrl || t.url)).map(t => chrome.tabs.update(t.id, { url: 'about:blank' })));
   await chrome.tabs.remove(tabs.map(t => t.id));
 }
 

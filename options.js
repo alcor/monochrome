@@ -7,7 +7,9 @@ const group = document.getElementById('group');
 const note = document.getElementById('group-note');
 const appSettings = document.getElementById('app-settings');
 if (!chrome.tabGroups) document.getElementById('groups').hidden = true;
-if (!chrome.runtime.getURL('').startsWith('chrome-extension:')) document.getElementById('shortcuts').hidden = true;
+if (chrome.runtime.getURL('').startsWith('safari-web-extension:')) document.getElementById('shortcuts').hidden = true;
+// Edge opens its own pages under edge://; its brand list names it.
+const EDGE = navigator.userAgentData?.brands?.some((b) => b.brand === 'Microsoft Edge') ?? / Edg\//.test(navigator.userAgent);
 
 chrome.runtime.sendMessage({ status: true }).then(({ helper, lockedGroup }) => {
   document.getElementById('dot').classList.toggle('on', helper);
@@ -22,4 +24,4 @@ chrome.runtime.sendMessage({ status: true }).then(({ helper, lockedGroup }) => {
 
 group.addEventListener('change', () => chrome.runtime.sendMessage({ lockedGroup: group.value }));
 appSettings.onclick = () => chrome.runtime.sendMessage({ appSettings: true });
-document.getElementById('shortcuts').onclick = () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+document.getElementById('shortcuts').onclick = () => chrome.tabs.create({ url: `${EDGE ? 'edge' : 'chrome'}://extensions/shortcuts` });

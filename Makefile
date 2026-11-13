@@ -53,10 +53,15 @@ test:
 pack:
 	store/pack.sh
 
+# A beta: make release VERSION=1.6-beta.1 CHANNEL=beta. Its appcast item carries <sparkle:channel>beta,
+# which only apps with Settings → General → Beta updates on take; the GitHub release is a prerelease.
+# BUILD (CFBundleVersion, which Sparkle compares) defaults to the last one plus one; see scripts/set-version.py.
+CHANNEL ?=
+BUILD ?=
 release:
-	@test -n "$(VERSION)" || { echo "usage: make release VERSION=1.1"; exit 1; }
-	sed -i '' 's/^    MARKETING_VERSION: ".*"/    MARKETING_VERSION: "$(VERSION)"/; s/^    CURRENT_PROJECT_VERSION: ".*"/    CURRENT_PROJECT_VERSION: "$(VERSION)"/' project.yml
-	python3 -c "import json; m = json.load(open('manifest.json')); m['version'] = '$(VERSION)'; f = open('manifest.json', 'w'); json.dump(m, f, ensure_ascii=False, indent=2); f.write('\n')"
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=1.5 [BUILD=6] [CHANNEL=beta]"; exit 1; }
+	@test -z "$(CHANNEL)" -o "$(CHANNEL)" = beta || { echo "CHANNEL: beta or nothing"; exit 1; }
+	python3 scripts/set-version.py "$(VERSION)" $(BUILD)
 	$(MAKE) project
 	rm -rf "$(ARCHIVE)" $(DERIVED)/upload $(DERIVED)/notarized
 	xcodebuild -project Monochrome.xcodeproj -scheme Monochrome -configuration Release -destination "generic/platform=macOS" \
@@ -75,13 +80,17 @@ release:
 	mkdir -p dist
 	rm -f dist/Monochrome-app-$(VERSION).zip
 	ditto -c -k --sequesterRsrc --keepParent "$(NOTARIZED)" dist/Monochrome-app-$(VERSION).zip
-	"$(SPARKLE_BIN)/generate_appcast" --download-url-prefix "https://github.com/arfct/monochrome/releases/download/v$(VERSION)/" \
+	# release-notes/<version>.md beside the zip: generate_appcast embeds it in the new item, and Sparkle
+	# (2.9 and later) shows it as Markdown in the update window.
+	@test -f release-notes/$(VERSION).md || { echo "missing release-notes/$(VERSION).md"; exit 1; }
+	cp release-notes/$(VERSION).md dist/Monochrome-app-$(VERSION).md
+	"$(SPARKLE_BIN)/generate_appcast" --embed-release-notes $(if $(CHANNEL),--channel $(CHANNEL)) --download-url-prefix "https://github.com/arfct/monochrome/releases/download/v$(VERSION)/" \
 	  --link https://github.com/arfct/monochrome/releases -o appcast.xml dist
 	# generate_appcast gives every zip in dist/ the new release's prefix; each goes back to its own release.
-	python3 -I -c "import re; s = open('appcast.xml').read(); open('appcast.xml', 'w').write(re.sub(r'download/v[^/]+/Monochrome-app-([0-9.]+)\.zip', r'download/v\1/Monochrome-app-\1.zip', s))"
+	python3 -I -c "import re; s = open('appcast.xml').read(); open('appcast.xml', 'w').write(re.sub(r'download/v[^/]+/Monochrome-app-([0-9][0-9a-z.-]*)\.zip', r'download/v\1/Monochrome-app-\1.zip', s))"
 	@echo
 	@echo "built dist/Monochrome-app-$(VERSION).zip and appcast.xml. To publish:"
-	@echo "  gh release create v$(VERSION) dist/Monochrome-app-$(VERSION).zip --title \"Monochrome $(VERSION)\" --notes \"...\""
+	@echo "  gh release create v$(VERSION) dist/Monochrome-app-$(VERSION).zip dist/Monochrome$$(sed -n 's/^    CURRENT_PROJECT_VERSION: \"\(.*\)\"/\1/p' project.yml)-*.delta --title \"Monochrome $(VERSION)\" --notes-file release-notes/$(VERSION).md$(if $(CHANNEL), --prerelease)"
 	@echo "  git commit -am \"Release $(VERSION)\" && git push"
 	@echo "The app reads the appcast on main, so the release must exist before that push lands."
 

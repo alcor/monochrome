@@ -79,6 +79,9 @@ targets:
         SUFeedURL: https://raw.githubusercontent.com/arfct/monochrome/main/appcast.xml
         SUPublicEDKey: 8KsAc6N3KqGJDXEUdTEnpkpDsadF5kqwph6Qonhpu8o=
         SUEnableAutomaticChecks: true
+        # Download and install updates without asking (Settings → General → Install updates
+        # automatically); UpdateInstaller in App.swift runs the install when the app is idle.
+        SUAutomaticallyUpdate: true
     postBuildScripts:
       - name: Extension and host
         basedOnDependencyAnalysis: false

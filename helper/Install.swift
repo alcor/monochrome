@@ -37,8 +37,8 @@ enum Install {
       defaults.set(path, forKey: "loginItemFor")
       do { try SMAppService.mainApp.register() } catch { log.error("install: login item: \(error.localizedDescription, privacy: .public)") }
     }
-    // The tile is there to start Chrome with its flags; Safari takes none.
-    if Browser.current == .chrome && defaults.string(forKey: "dockTileFor") != path { placeDockTile(path: path) }
+    // The tile is there to start Chrome (or Edge) with its flags; Safari takes none.
+    if Browser.current.isChromium && defaults.string(forKey: "dockTileFor") != path { placeDockTile(path: path) }
     if defaults.string(forKey: "defaultBrowserAskedFor") != path {
       defaults.set(path, forKey: "defaultBrowserAskedFor")
       makeDefaultBrowser {}
@@ -58,9 +58,11 @@ enum Install {
 
   // MARK: Native messaging host
 
-  // The folder each Chrome reads host manifests from, relative to Application Support. Stable always
-  // (it may not have run yet); the others only when they have run on this Mac.
-  static let hostFolders = ["Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary", "Chromium"]
+  // The folder each Chromium reads host manifests from, relative to Application Support. Chrome's
+  // stable always, and the chosen browser's stable (Edge's, when Edge is chosen), since either may not
+  // have run yet; the others only when they have run on this Mac.
+  static var hostFolders: [String] { Chrome.chromiumVariants.map(\.hostFolder) }
+  static var alwaysHostFolders: Set<String> { [Chrome.chromiumVariants[0].hostFolder, Chrome.chromeVariants[0].hostFolder] }
 
   // The extension IDs allowed to connect, written to Resources/extension-ids.json by the project's run
   // script: the unpacked extension's (from the manifest key) and the Web Store's (store/id).
@@ -79,9 +81,10 @@ enum Install {
     let fm = FileManager.default
     // MONOCHROME_HOSTS names one NativeMessagingHosts folder to use instead, for the tests: Chrome also
     // reads one inside a --user-data-dir.
+    let always = alwaysHostFolders
     let folders = ProcessInfo.processInfo.environment["MONOCHROME_HOSTS"].map { [$0] } ?? hostFolders.compactMap { folder -> String? in
       let chrome = support.appendingPathComponent(folder)
-      guard folder == hostFolders[0] || fm.fileExists(atPath: chrome.path) else { return nil }
+      guard always.contains(folder) || fm.fileExists(atPath: chrome.path) else { return nil }
       return chrome.appendingPathComponent("NativeMessagingHosts").path
     }
     for folder in folders {
@@ -107,7 +110,9 @@ enum Install {
   // app holds that role. Each pair can be turned off in Settings → Tabs (shortcutSidebar, shortcutTabs):
   // its entries are then removed, but only where they still hold these values, so a shortcut someone
   // set to something else is left alone.
-  static let chromeDomains = ["com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.dev", "com.google.Chrome.canary", "org.chromium.Chromium"]
+  // Edge gets the tab pair only: its menus have no "Collapse Vertical Tabs" item (nor any vertical
+  // tabs item) to put ⌘S on, so moving Save Page As off ⌘S would leave ⌘S doing nothing. Edge 157's
+  // Tab menu has "Select Next Tab" and "Select Previous Tab", Chrome's titles, read over Accessibility.
   static let sidebarShortcuts = ["Collapse Vertical Tabs": "@s", "Save Page As…": "@$s"]
   static let tabShortcuts = ["Select Next Tab": "@~\u{F701}", "Select Previous Tab": "@~\u{F700}"]
   static var shortcuts: [String: String] { sidebarShortcuts.merging(tabShortcuts) { a, _ in a } }
@@ -129,11 +134,12 @@ enum Install {
   }
 
   static func setChromeShortcuts() {
-    for (domain, variant) in zip(chromeDomains, Chrome.chromeVariants) {
-      guard domain == chromeDomains[0] || NSWorkspace.shared.urlForApplication(withBundleIdentifier: variant.bundleId) != nil,
+    for variant in Chrome.chromiumVariants {
+      let domain = variant.bundleId
+      guard domain == Chrome.chromiumVariants[0].bundleId || NSWorkspace.shared.urlForApplication(withBundleIdentifier: domain) != nil,
             let prefs = UserDefaults(suiteName: domain) else { continue }
       let keys = prefs.dictionary(forKey: "NSUserKeyEquivalents") as? [String: String] ?? [:]
-      let (want, drop) = split(sidebarShortcuts, tabShortcuts)
+      let (want, drop) = split(variant.family == .edge ? [:] : sidebarShortcuts, tabShortcuts)
       let next = apply(keys, want: want, drop: drop)
       if next == nil, prefs.object(forKey: "DefaultBrowserSettingEnabled") as? Bool == false { continue }
       if let next { prefs.set(next, forKey: "NSUserKeyEquivalents") }
@@ -144,8 +150,8 @@ enum Install {
 
   // MARK: Dock
 
-  // A pinned Google Chrome tile would start Chrome without the launch flags, so this app's tile takes
-  // its place. The Dock writes its old tiles back over a change made in its first seconds, so the
+  // A pinned Google Chrome tile (Microsoft Edge, when Edge is the Browser setting) would start the
+  // browser without the launch flags, so this app's tile takes its place. The Dock writes its old tiles back over a change made in its first seconds, so the
   // change waits until the Dock has been up 15 seconds, and is checked and retried up to five times.
   static func placeDockTile(path: String, attempt: Int = 1) {
     let dockApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
@@ -157,9 +163,10 @@ enum Install {
       try? FileManager.default.copyItem(at: home.appendingPathComponent("Library/Preferences/com.apple.dock.plist"), to: backup)
     }
     let tiles = dock["persistent-apps"] as? [[String: Any]] ?? []
+    let replaced = Chrome.chromeVariants[0].bundleId
     var keep = tiles.filter { tile in
       let data = tile["tile-data"] as? [String: Any] ?? [:]
-      return data["bundle-identifier"] as? String != "com.google.Chrome"
+      return data["bundle-identifier"] as? String != replaced
         && !["Chrome Launcher", "Arc for Chrome", "Monochrome"].contains(data["file-label"] as? String ?? "")
     }
     keep.append(["tile-type": "file-tile", "tile-data": [

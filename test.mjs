@@ -14,9 +14,12 @@ const ext = import.meta.dirname;
 const server = http.createServer((req, res) => res.end(`<title>${req.url}</title>${req.url}`)).listen(0);
 const base = `http://127.0.0.1:${server.address().port}`;
 
+// MONOCHROME_BROWSER=<executable> runs the suite in another Chromium (Edge, Chrome) instead of
+// Playwright's: `MONOCHROME_BROWSER="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" npm test`.
+const browserOpts = process.env.MONOCHROME_BROWSER ? { executablePath: process.env.MONOCHROME_BROWSER } : { channel: 'chromium' };
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'monochrome-test-'));
 const ctx = await chromium.launchPersistentContext(profile, {
-  channel: 'chromium',
+  ...browserOpts,
   headless: !process.env.HEADFUL,
   args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
 });
@@ -233,9 +236,20 @@ console.log('link from a normal tab opens right after it: ok');
 const n4 = await sw.evaluate(async opener => (await chrome.tabs.create({ url: 'chrome://newtab/', openerTabId: opener })).id, n1);
 await settle();
 assert.equal(await indexOf(n4), (await lastLockedIndex()) + 1);
+// Edge refuses to let an extension close its New Tab page ("Cannot remove NTP tab"); it navigates away first.
+await sw.evaluate(id => chrome.tabs.update(id, { url: 'about:blank' }), n4);
+await sleep(300);
 await sw.evaluate(ids => chrome.tabs.remove(ids), [n1, n2, n3, n4]);
 await settle();
 console.log('new tab page with an opener goes to the top: ok');
+
+// The close-tab command closes a New Tab page too (Edge refuses chrome.tabs.remove on one).
+const ntp = await sw.evaluate(async () => (await chrome.tabs.create({ url: 'chrome://newtab/', active: true })).id);
+await settle();
+await sw.evaluate(() => closeTabs());
+await settle();
+assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id).catch(() => null)) === null, ntp), true);
+console.log('close-tab command closes a New Tab page: ok');
 
 // Recent tabs. Karabiner sends recent-next for the first ⌃Tab after Control goes down, recent-continue
 // for more ⌃Tabs while Control is held, recent-prev for ⌃⇧Tab.
@@ -635,6 +649,37 @@ if (fs.existsSync(helperBinary)) {
   console.log('safari: profile titles, vertical tab gate, sidebar pick, profile envelope, App Shortcuts: ok');
 } else console.log('safari: app readers: skipped (run make build)');
 
+// The app's Chromium readers (helper/Chrome.swift): window titles split into tab and profile for Chrome
+// and Edge (Edge's zero-width space after "Microsoft", and the profile on either side of its name), the
+// variants with their host folders, and the App Shortcuts per family (Edge has no sidebar pair).
+if (fs.existsSync(helperBinary)) {
+  const check = async request => {
+    const p = spawn(helperBinary, ['--check-chrome', JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    const code = await new Promise(r => p.on('exit', r));
+    return { code, result: out ? JSON.parse(out).result : undefined };
+  };
+  const split = async (title, profiles = ['Work', 'Personal']) => (await check({ op: 'split', title, profiles })).result;
+  assert.deepEqual(await split('Inbox - Google Chrome - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Google Chrome'), ['Inbox', '']);
+  assert.deepEqual(await split('Notes - Personal - Google Chrome'), ['Notes - Personal', '']); // Chrome's order is fixed
+  assert.deepEqual(await split('Inbox - Google Chrome Beta - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Microsoft\u200B Edge - Work'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Work - Microsoft\u200B Edge'), ['Inbox', 'Work']);
+  assert.deepEqual(await split('Inbox - Microsoft Edge'), ['Inbox', '']);
+  assert.deepEqual(await split('Inbox - Microsoft\u200B Edge Beta - Personal'), ['Inbox', 'Personal']);
+  assert.deepEqual(await split('Inbox - Work'), ['Inbox', 'Work']); // a popup
+  const variants = (await check({ op: 'variants' })).result;
+  const edge = variants.filter(v => v.family === 'edge');
+  assert.deepEqual(edge.map(v => v.bundleId), ['com.microsoft.edgemac', 'com.microsoft.edgemac.Beta', 'com.microsoft.edgemac.Dev', 'com.microsoft.edgemac.Canary']);
+  assert.deepEqual(edge.map(v => v.hostFolder), ['Microsoft Edge', 'Microsoft Edge Beta', 'Microsoft Edge Dev', 'Microsoft Edge Canary']);
+  assert.equal(variants[0].bundleId, 'com.google.Chrome');
+  assert.deepEqual(Object.keys((await check({ op: 'shortcuts', family: 'chrome' })).result).sort(), ['Collapse Vertical Tabs', 'Save Page As…', 'Select Next Tab', 'Select Previous Tab']);
+  assert.deepEqual(Object.keys((await check({ op: 'shortcuts', family: 'edge' })).result).sort(), ['Select Next Tab', 'Select Previous Tab']);
+  console.log('chromium: Chrome and Edge window titles, Edge variants and host folders, App Shortcuts per family: ok');
+} else console.log('chromium: app readers: skipped (run make build)');
+
 // Settings from the app (docs/settings.md): { prefs } over the port, the whole set, kept in
 // chrome.storage.local; without the app, PREF_DEFAULTS, which is how the extension behaved before.
 {
@@ -820,7 +865,7 @@ if (fs.existsSync(helperBinary)) {
   const lines = [];
   const app = net.createServer(c => c.on('data', d => lines.push(...d.toString().split('\n').filter(Boolean)))).listen(sock);
   const ctx2 = await chromium.launchPersistentContext(fresh, {
-    channel: 'chromium', headless: !process.env.HEADFUL,
+    ...browserOpts, headless: !process.env.HEADFUL,
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
     env: { ...process.env, MONOCHROME_SOCKET: sock, MONOCHROME_NO_LAUNCH: '1' },
   });

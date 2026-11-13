@@ -101,13 +101,15 @@ Eight tabs in the toolbar, in this order. Keys go in each row's label, in the RE
 
 "Sent" in the Key column marks the nine keys in the `prefs` message. Type T is a toggle, P a picker, B a button, S a status row that shows a state or the button that fixes it.
 
-### General: 5 controls
+### General: 7 controls
 
 | Label | Type | Default | Key | Read by | Description |
 |---|---|---|---|---|---|
 | Open at login | T | on | none (`SMAppService`); `loginItemFor` records the first registration | `GeneralModel.setLaunchAtLogin` | Monochrome starts with the Mac |
 | Check for updates automatically | T | on | Sparkle's `SUEnableAutomaticChecks` | `updater.automaticallyChecksForUpdates` | Once a day, from the appcast on GitHub |
-| Version 1.2.1 | B Check for Updates… | | none | `SettingsWindow.checkForUpdates` | none |
+| Beta updates | T | off | `betaUpdates` | `UpdateInstaller.allowedChannels` | Takes appcast items on the `beta` channel too |
+| Install updates automatically | T | on; off while checks are off | Sparkle's `SUAutomaticallyUpdate` | `updater.automaticallyDownloadsUpdates`, `UpdateInstaller` | Downloads in the background and relaunches when idle |
+| Version 1.2.1 | B Check Now | | none | `SettingsWindow.checkForUpdates` | none |
 | Default browser | S Make Default… | | none | `GeneralModel.makeDefault` | Links from other apps reach Monochrome first |
 | Accessibility | S Open Settings… | | none | `AXIsProcessTrusted` | For ⌃Tab, ⌥⌘-click, ⌘L, ⌘T and the profile hotkeys |
 

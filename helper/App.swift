@@ -47,11 +47,46 @@ final class UpdateReminders: NSObject, SPUStandardUserDriverDelegate {
   }
 }
 
+// Silent updates (Settings → General → Install updates automatically, Sparkle's SUAutomaticallyUpdate):
+// Sparkle downloads the update in the background and would install it when the app quits, which a
+// login item that runs all day rarely does. Sparkle hands over the install instead, and it runs as
+// soon as the settings window is closed, checked every minute; the app relaunches itself in about a
+// second, and the extension reconnects on its own.
+final class UpdateInstaller: NSObject, SPUUpdaterDelegate {
+  private var pending: (() -> Void)?
+  private var timer: Timer?
+  var busy: () -> Bool = { false }
+
+  // Settings → General → Beta updates: appcast items marked <sparkle:channel>beta</sparkle:channel>
+  // (make release CHANNEL=beta) reach only apps with it on. Items with no channel reach everyone.
+  func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+    Prefs.store.bool(forKey: "betaUpdates") ? ["beta"] : []
+  }
+
+  func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock: @escaping () -> Void) -> Bool {
+    log.notice("update: \(item.displayVersionString, privacy: .public) downloaded; installing when idle")
+    pending = immediateInstallationBlock
+    timer?.invalidate()
+    timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.installIfIdle() }
+    installIfIdle()
+    return true
+  }
+
+  private func installIfIdle() {
+    guard let install = pending, !busy() else { return }
+    pending = nil
+    timer?.invalidate()
+    log.notice("update: installing and relaunching")
+    install()
+  }
+}
+
 final class App: NSObject, NSApplicationDelegate {
   static let bundleId = "com.artifact.monochrome"
   let switcher = Switcher()
   let reminders = UpdateReminders()
-  lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: reminders)
+  let installer = UpdateInstaller()
+  lazy var updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: installer, userDriverDelegate: reminders)
   let player = Player()
   let minis = MiniBrowsers()
   let profiles = Profiles()
@@ -77,11 +112,14 @@ final class App: NSObject, NSApplicationDelegate {
     NSApp.setActivationPolicy(.accessory)
     Install.atLaunch()
     NSApp.mainMenu = mainMenu()
+    installer.busy = { SettingsWindow.shared.isVisible }
     updater.startUpdater()
     SettingsWindow.shared.checkForUpdates = { [weak self] in self?.updater.checkForUpdates(nil) }
     SettingsWindow.shared.connectedProfiles = { [weak self] in self?.allConnections.compactMap(ConnectedProfile.init) ?? [] }
     SettingsWindow.shared.automaticUpdates = (get: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates ?? true },
                                               set: { [weak self] in self?.updater.updater.automaticallyChecksForUpdates = $0 })
+    SettingsWindow.shared.silentUpdates = (get: { [weak self] in self?.updater.updater.automaticallyDownloadsUpdates ?? true },
+                                           set: { [weak self] in self?.updater.updater.automaticallyDownloadsUpdates = $0 })
     prefsSent = Prefs.json(Prefs.payload)
     NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: Prefs.store, queue: .main) { [weak self] _ in self?.prefsChanged() }
 

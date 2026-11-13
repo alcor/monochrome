@@ -32,6 +32,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     get: { Prefs.store.object(forKey: "SUEnableAutomaticChecks") as? Bool ?? true },
     set: { Prefs.store.set($0, forKey: "SUEnableAutomaticChecks") }
   )
+  var silentUpdates: (get: () -> Bool, set: (Bool) -> Void) = (
+    get: { Prefs.store.object(forKey: "SUAutomaticallyUpdate") as? Bool ?? true },
+    set: { Prefs.store.set($0, forKey: "SUAutomaticallyUpdate") }
+  )
+  var betaUpdates: (get: () -> Bool, set: (Bool) -> Void) = (
+    get: { Prefs.store.bool(forKey: "betaUpdates") },
+    set: { Prefs.store.set($0, forKey: "betaUpdates") }
+  )
+  var isVisible: Bool { window?.isVisible ?? false }
   private var window: NSWindow?
   private var tabs: SettingsTabController?
   private var rulesModel: RulesModel?
@@ -64,7 +73,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     let check = { [weak self] in self?.checkForUpdates() ?? () }
     // Heights fitted so no tab scrolls, from the --demo-settings pictures.
     let pages: [(NSViewController, String, String, CGFloat)] = [
-      (NSHostingController(rootView: GeneralSettings(model: model, updates: automaticUpdates, onCheckForUpdates: check)), "General", "gearshape", 320),
+      (NSHostingController(rootView: GeneralSettings(model: model, updates: automaticUpdates, silent: silentUpdates, beta: betaUpdates, onCheckForUpdates: check)), "General", "gearshape", 460),
       (NSHostingController(rootView: BrowserSettings(model: model)), "Browser", "globe", 400),
       (NSHostingController(rootView: ProfilesSettings(model: model)), "Profiles", "person.2", 400),
       (NSHostingController(rootView: TabsSettings(model: model)), "Tabs", "sidebar.left", 500),

@@ -175,8 +175,12 @@ private struct WarningHeader: View {
 struct GeneralSettings: View {
   @ObservedObject var model: GeneralModel
   let updates: (get: () -> Bool, set: (Bool) -> Void)
+  let silent: (get: () -> Bool, set: (Bool) -> Void)
+  let beta: (get: () -> Bool, set: (Bool) -> Void)
   var onCheckForUpdates: () -> Void
   @State private var automatic = true
+  @State private var install = true
+  @State private var betas = false
 
   var body: some View {
     Columns {
@@ -185,7 +189,12 @@ struct GeneralSettings: View {
                       isOn: Binding(get: { model.launchAtLogin }, set: model.setLaunchAtLogin))
         SettingToggle("Check for updates automatically", detail: "Once a day, from the appcast on GitHub", symbol: "arrow.triangle.2.circlepath",
                       isOn: Binding(get: { automatic }, set: { automatic = $0; updates.set($0) }))
-        SettingRow("Version " + model.version, symbol: "info.circle") { Button("Check for Updates…", action: onCheckForUpdates) }
+        SettingToggle("Install updates automatically", detail: "Downloads in the background and relaunches when idle", symbol: "arrow.down.app",
+                      isOn: Binding(get: { install }, set: { install = $0; silent.set($0) }))
+          .disabled(!automatic)
+        SettingToggle("Beta updates", detail: "Also offers test builds before they're released", symbol: "testtube.2",
+                      isOn: Binding(get: { betas }, set: { betas = $0; beta.set($0) }))
+        SettingRow("Version " + model.version, symbol: "info.circle") { Button("Check Now", action: onCheckForUpdates) }
       }
     } right: {
       Section("macOS") {
@@ -195,7 +204,7 @@ struct GeneralSettings: View {
                   ok: model.accessibility, okText: "Allowed", button: "Open Settings…") { GeneralModel.openPrivacyPane("Privacy_Accessibility") }
       }
     }
-    .onAppear { automatic = updates.get() }
+    .onAppear { automatic = updates.get(); install = silent.get(); betas = beta.get() }
     .onReceive(refreshTimer) { _ in model.refresh() }
   }
 }

@@ -14,9 +14,12 @@ const ext = import.meta.dirname;
 const server = http.createServer((req, res) => res.end(`<title>${req.url}</title>${req.url}`)).listen(0);
 const base = `http://127.0.0.1:${server.address().port}`;
 
+// MONOCHROME_BROWSER=<executable> runs the suite in another Chromium (Edge, Chrome) instead of
+// Playwright's: `MONOCHROME_BROWSER="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" npm test`.
+const browserOpts = process.env.MONOCHROME_BROWSER ? { executablePath: process.env.MONOCHROME_BROWSER } : { channel: 'chromium' };
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'monochrome-test-'));
 const ctx = await chromium.launchPersistentContext(profile, {
-  channel: 'chromium',
+  ...browserOpts,
   headless: !process.env.HEADFUL,
   args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
 });
@@ -233,9 +236,20 @@ console.log('link from a normal tab opens right after it: ok');
 const n4 = await sw.evaluate(async opener => (await chrome.tabs.create({ url: 'chrome://newtab/', openerTabId: opener })).id, n1);
 await settle();
 assert.equal(await indexOf(n4), (await lastLockedIndex()) + 1);
+// Edge refuses to let an extension close its New Tab page ("Cannot remove NTP tab"); it navigates away first.
+await sw.evaluate(id => chrome.tabs.update(id, { url: 'about:blank' }), n4);
+await sleep(300);
 await sw.evaluate(ids => chrome.tabs.remove(ids), [n1, n2, n3, n4]);
 await settle();
 console.log('new tab page with an opener goes to the top: ok');
+
+// The close-tab command closes a New Tab page too (Edge refuses chrome.tabs.remove on one).
+const ntp = await sw.evaluate(async () => (await chrome.tabs.create({ url: 'chrome://newtab/', active: true })).id);
+await settle();
+await sw.evaluate(() => closeTabs());
+await settle();
+assert.equal(await sw.evaluate(async id => (await chrome.tabs.get(id).catch(() => null)) === null, ntp), true);
+console.log('close-tab command closes a New Tab page: ok');
 
 // Recent tabs. Karabiner sends recent-next for the first ⌃Tab after Control goes down, recent-continue
 // for more ⌃Tabs while Control is held, recent-prev for ⌃⇧Tab.
@@ -851,7 +865,7 @@ if (fs.existsSync(helperBinary)) {
   const lines = [];
   const app = net.createServer(c => c.on('data', d => lines.push(...d.toString().split('\n').filter(Boolean)))).listen(sock);
   const ctx2 = await chromium.launchPersistentContext(fresh, {
-    channel: 'chromium', headless: !process.env.HEADFUL,
+    ...browserOpts, headless: !process.env.HEADFUL,
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
     env: { ...process.env, MONOCHROME_SOCKET: sock, MONOCHROME_NO_LAUNCH: '1' },
   });

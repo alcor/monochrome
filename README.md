@@ -83,11 +83,12 @@ Edge is Chromium, so it takes the same extension and the same app with every Chr
 Edge differences:
 
 - App Shortcuts: only ⌥⌘↓ and ⌥⌘↑ (Select Next Tab, Select Previous Tab) are written to Edge's preferences. Edge has no Collapse Vertical Tabs menu item to take ⌘S, so Save Page As stays on ⌘S.
-- Window titles: Edge writes "Microsoft Edge" with a zero-width space after "Microsoft", and on Windows puts the profile's name before its own. The app reads both orders, so the profile is learned from either.
+- Window titles: Edge 157 on the Mac writes "tab - Microsoft Edge - profile", Chrome's order. On Windows Edge puts the profile first and a zero-width space after "Microsoft"; the app reads that form too.
+- An extension cannot close Edge's New Tab page (`chrome.tabs.remove` fails with "Cannot remove NTP tab"); it has to navigate the tab away first.
 - The extension's options page and the Extension shortcuts row open `edge://extensions/shortcuts`.
 - Chrome and Edge can run at the same time. Their windows and connections are handled together, as Chrome's channels are.
 
-None of the Edge behavior has been tried in Edge yet: the window title order on the Mac, the Profiles menu read over Accessibility, the Tab menu titles the App Shortcuts name, the launch flag, and the mini player's sidebar width with Edge's vertical tabs are unmeasured.
+Measured in Edge 157.0.4341.57 on macOS: the whole extension suite passes in Edge (`MONOCHROME_BROWSER="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" node test.mjs`), including the app-registered host in a fresh Edge profile folder; the app connected two Edge profiles at once and learned the second one's name from its window title; the Profiles menu reads as Chrome's does (profiles, a separator, Manage Profile Settings); the Tab menu has Select Next Tab and Select Previous Tab, and no menu has a vertical tabs item. Not yet tried: the launch flag's effect on Edge's address bar, the mini player over Edge's vertical tabs, ⌃Tab and the profile hotkeys pressed by hand, and the install at launch (Dock tile, App Shortcuts written to Edge's preferences).
 
 ## Build from source
 

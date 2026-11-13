@@ -302,8 +302,11 @@ function repin(tab) {
   return run(() => sync(p => { if (p[tab.id]) p[tab.id] = tab.url; }));
 }
 
+// Edge refuses to let an extension close its New Tab page ("Cannot remove NTP tab"), so one is moved
+// off it first.
 async function closeTabs() {
   const tabs = await chrome.tabs.query({ highlighted: true, currentWindow: true });
+  await Promise.all(tabs.filter(t => /^edge:\/\/newtab/.test(t.pendingUrl || t.url)).map(t => chrome.tabs.update(t.id, { url: 'about:blank' })));
   await chrome.tabs.remove(tabs.map(t => t.id));
 }
 

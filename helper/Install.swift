@@ -110,9 +110,9 @@ enum Install {
   // app holds that role. Each pair can be turned off in Settings → Tabs (shortcutSidebar, shortcutTabs):
   // its entries are then removed, but only where they still hold these values, so a shortcut someone
   // set to something else is left alone.
-  // Edge gets the tab pair only: its menus have no "Collapse Vertical Tabs" item to put ⌘S on, so
-  // moving Save Page As off ⌘S would leave ⌘S doing nothing. Edge's menu titles are Chromium's for the
-  // tab pair; that has not been checked in Edge itself.
+  // Edge gets the tab pair only: its menus have no "Collapse Vertical Tabs" item (nor any vertical
+  // tabs item) to put ⌘S on, so moving Save Page As off ⌘S would leave ⌘S doing nothing. Edge 157's
+  // Tab menu has "Select Next Tab" and "Select Previous Tab", Chrome's titles, read over Accessibility.
   static let sidebarShortcuts = ["Collapse Vertical Tabs": "@s", "Save Page As…": "@$s"]
   static let tabShortcuts = ["Select Next Tab": "@~\u{F701}", "Select Previous Tab": "@~\u{F700}"]
   static var shortcuts: [String: String] { sidebarShortcuts.merging(tabShortcuts) { a, _ in a } }

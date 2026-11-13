@@ -62,7 +62,7 @@ enum Chrome {
     Variant(bundleId: "com.google.Chrome.dev", name: "Google Chrome Dev", family: .chrome, hostFolder: "Google/Chrome Dev"),
     Variant(bundleId: "com.google.Chrome.canary", name: "Google Chrome Canary", family: .chrome, hostFolder: "Google/Chrome Canary"),
     Variant(bundleId: "org.chromium.Chromium", name: "Chromium", family: .chrome, hostFolder: "Chromium"),
-    // Edge's window titles put a zero-width space after "Microsoft"; split(title:) drops it first.
+    // Edge on Windows puts a zero-width space after "Microsoft" in its titles; split(title:) drops it.
     Variant(bundleId: "com.microsoft.edgemac", name: "Microsoft Edge", family: .edge, hostFolder: "Microsoft Edge"),
     Variant(bundleId: "com.microsoft.edgemac.Beta", name: "Microsoft Edge Beta", family: .edge, hostFolder: "Microsoft Edge Beta"),
     Variant(bundleId: "com.microsoft.edgemac.Dev", name: "Microsoft Edge Dev", family: .edge, hostFolder: "Microsoft Edge Dev"),
@@ -254,10 +254,10 @@ enum Chrome {
 
   // A window's title is "tab - Google Chrome - profile" for a normal window (Beta, Dev, Canary and
   // Chromium put their own names there) and "tab - profile" for a popup, the profile part only when
-  // that Chrome has more than one profile; the names come from the Profiles menus. Edge writes
-  // "Microsoft\u{200B} Edge" (a zero-width space after Microsoft), and on Windows puts the profile
-  // before its name ("tab - profile - Microsoft Edge"); both orders are read here, since the Mac order
-  // has not been checked.
+  // that Chrome has more than one profile; the names come from the Profiles menus. Edge 157 on the Mac
+  // writes "tab - Microsoft Edge - profile", Chrome's order, measured. On Windows it writes
+  // "tab - profile - Microsoft\u{200B} Edge" (a zero-width space after Microsoft); that order and the
+  // space are read too, in case a Mac build follows.
   static func split(title raw: String, profiles: [String]? = nil) -> (tab: String, profile: String) {
     let full = raw.replacingOccurrences(of: "\u{200B}", with: "")
     // Safari puts no profile in its titles, so a page title ending in a profile's name is just a title.
